@@ -86,7 +86,11 @@ def startup():
 @app.post("/api/submit")
 async def submit_score(request: Request):
     """提交一条游戏记录"""
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "message": "无效的JSON数据"}, status_code=400)
+
     player_name = (data.get("name") or "玩家").strip()[:20]
     mode = data.get("mode", "timed")
     score = int(data.get("score", 0))
@@ -96,13 +100,14 @@ async def submit_score(request: Request):
     play_seconds = int(data.get("play_seconds", 0))
 
     if mode not in ("timed", "practice", "endless"):
-        raise HTTPException(400, "无效的游戏模式")
+        return JSONResponse({"success": False, "message": "无效的游戏模式"}, status_code=400)
 
     if score < 0:
-        raise HTTPException(400, "分数不能为负数")
+        return JSONResponse({"success": False, "message": "分数不能为负数"}, status_code=400)
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         # 插入分数记录
         conn.execute(
             "INSERT INTO scores (player_name, mode, score, level, max_combo, words_done, play_seconds) "
@@ -148,8 +153,11 @@ async def submit_score(request: Request):
             "rank": rank,
             "message": f"成绩已上传！全球排名第 {rank} 名"
         }
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"服务器错误: {str(e)}"}, status_code=500)
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 @app.get("/api/leaderboard/{mode}")

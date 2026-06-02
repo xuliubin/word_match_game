@@ -35,10 +35,11 @@ canvas{display:block;touch-action:manipulation}
 #bottom{padding:6px 10px 8px;background:#fff;border-top:1px solid #ffe8ec;flex-shrink:0}
 #selected{font-size:17px;color:#e8b832;font-weight:bold;text-align:center;min-height:22px}
 #itemRow{display:flex;justify-content:center;gap:5px;padding:4px 0}
-#itemRow button{padding:2px 7px;border-radius:8px;font-size:10px;border:1px solid #e8d5d5;
-  background:#fff;color:#503737;cursor:pointer}
+#itemRow{display:flex;justify-content:center;gap:4px;padding:3px 0}
+#itemRow button{padding:3px 8px;border-radius:10px;font-size:11px;border:1px solid #e8d5d5;
+  background:#fff;color:#503737;cursor:pointer;min-width:36px}
 #itemRow button.empty{background:#f8f8f8;color:#d8d0d0;border-style:dashed}
-#itemRow button.shop{background:#fff8f0;color:#c8b8b8;border:1px dashed #e8d5d5;font-size:9px}
+#itemRow button.shop{background:#fff8f0;color:#c8b8b8;border:1px dashed #e8d5d5;font-size:10px;min-width:20px}
 #ctrlRow{display:flex;align-items:center;justify-content:center;gap:8px;padding:2px 0}
 #ctrlRow button{padding:6px 20px;border:none;border-radius:18px;font-size:14px;font-weight:bold;
   cursor:pointer;background:#ffb48c;color:#fff;box-shadow:0 2px 4px rgba(200,160,140,.3)}
@@ -119,8 +120,7 @@ canvas{display:block;touch-action:manipulation}
 
 <div id="gameOverOverlay" class="overlay hidden"><div class="card">
   <div id="gameOverContent"></div>
-  <div style="margin:8px 0"><input id="playerName" placeholder="输入名字记入排行榜" style="padding:8px 12px;border:2px solid #e8d5d5;border-radius:12px;font-size:14px;width:80%;text-align:center"></div>
-  <button onclick="game.saveScore()">保存成绩</button>
+  <p id="saveStatus" style="font-size:12px;color:#78c878;min-height:18px"></p>
   <button class="secondary" onclick="game.restart()">再来一局</button>
   <button class="secondary" onclick="game.showReview()">单词回顾</button>
   <button class="secondary" onclick="game.backToMenu()">回菜单</button>
@@ -404,11 +404,11 @@ class Game {
   // ====== 道具系统 ======
   initItems(){
     this.ITEM_DEFS={
-      hint:{id:'hint',name:'提示卡',desc:'短暂显示目标单词3秒',rarity:'普通',icon:'[?]',mpCost:3},
-      shuffle:{id:'shuffle',name:'重排卡',desc:'随机重排矩阵字母',rarity:'普通',icon:'[~]',mpCost:3},
-      freeze:{id:'freeze',name:'冻结卡',desc:'暂停计时10秒(限时/无尽)',rarity:'稀有',icon:'[=]',mpCost:6},
-      double:{id:'double',name:'双倍卡',desc:'下次匹配得分翻倍',rarity:'稀有',icon:'[x2]',mpCost:6},
-      lightning:{id:'lightning',name:'闪电卡',desc:'自动完成当前正在拼的单词',rarity:'史诗',icon:'[!]',mpCost:10},
+      hint:{id:'hint',name:'提示卡',desc:'短暂显示目标单词3秒',rarity:'普通',icon:'提示',mpCost:3},
+      shuffle:{id:'shuffle',name:'重排卡',desc:'随机重排矩阵字母',rarity:'普通',icon:'重排',mpCost:3},
+      freeze:{id:'freeze',name:'冻结卡',desc:'暂停计时10秒(限时/无尽)',rarity:'稀有',icon:'冻结',mpCost:6},
+      double:{id:'double',name:'双倍卡',desc:'下次匹配得分翻倍',rarity:'稀有',icon:'双倍',mpCost:6},
+      lightning:{id:'lightning',name:'闪电卡',desc:'自动完成当前正在拼的单词',rarity:'史诗',icon:'闪电',mpCost:10},
     };
     this.state.items=this.state.items||{hint:0,shuffle:0,freeze:0,double:0,lightning:0};
     this.state.dailyChecked=this.state.dailyChecked||'';
@@ -793,14 +793,14 @@ class Game {
     if(idx>=0){this.selectedCells.splice(idx,1);this.errorCell=null;this.errorTimer=0}
     else{
       this.selectedCells.push(cell);
-      this.beep(600,0.08);
+      this.sfxClick();
       let sel=this.selectedCells.map(p=>this.matrix[p[0]][p[1]]).join('');
       let active=this.targetWords.filter(w=>this.wordRemaining[w]>0);
       if(!active.some(w=>w.toUpperCase().startsWith(sel))){
         this.errorCell=cell;this.errorTimer=0.35;this.wrongTotal++;
         if(this.combo>=2) this.showMsg('连击中断!','#f06e6e');
         this.combo=0;this.feverActive=false;this.feverTimer=0;
-        this.beep(200,0.15);
+        this.sfxError();
       }
     }
     if(this.selectedCells.length) this.autoCheck();
@@ -829,12 +829,12 @@ class Game {
     this.flashCells=[...this.selectedCells];this.flashTimer=0.5;
     if(this.goldenCell&&this.selectedCells.some(p=>p[0]===this.goldenCell[0]&&p[1]===this.goldenCell[1])){
       this.score+=15;this.state.totalGoldens=(this.state.totalGoldens||0)+1;
-      this.goldenCell=null;this.goldenTimer=0;this.showMsg('* GOLDEN! +15 *','#e8963c');
+      this.goldenCell=null;this.goldenTimer=0;this.showMsg('* GOLDEN! +15 *','#e8963c');this.sfxGolden();
     }
     this.selectedCells=[];this.errorCell=null;this.errorTimer=0;
     this.wordRemaining[matched]--;
-    this.beep(800,0.12);
-    if(this.combo===5){this.feverActive=true;this.feverTimer=12;this.state.achieve.fever1=true;this.showMsg('>> FEVER TIME! 2x! <<','#e8963c')}
+    this.sfxMatch();
+    if(this.combo===5){this.feverActive=true;this.feverTimer=12;this.state.achieve.fever1=true;this.showMsg('>> FEVER TIME! 2x! <<','#e8963c');this.sfxFever()}
     if(this.combo>=7) this.screenShake=0.2;
     let cn=WORD_CN[matched]||'', r=this.wordRemaining[matched];
     let tag=this.feverActive?' [x2]':'', ctag=this.combo>=2?' '+this.combo+'x!':'';
@@ -870,7 +870,7 @@ class Game {
     this.phase='level_done';this.transitionTimer=2;
     this.selectedCells=[];this.combo=0;this.feverActive=false;this.feverTimer=0;
     this.checkAndAwardItems();
-    this.beep(1000,0.3);setTimeout(()=>this.beep(1200,0.3),150);
+    this.sfxLevel();
     this.updateUI();
   }
 
@@ -1026,7 +1026,7 @@ class Game {
     let html='';
     for(let id in this.ITEM_DEFS){
       let d=this.ITEM_DEFS[id],count=this.state.items[id]||0;
-      html+='<button onclick="game.useItem(\''+id+'\')" class="'+(count>0?'':'empty')+'">'+d.icon+' x'+count+'</button>';
+      html+='<button onclick="game.useItem(\''+id+'\')" class="'+(count>0?'':'empty')+'">'+d.icon+'<b style="font-size:10px;color:'+(count>0?'#f0b830':'#d8d0d0')+'">'+count+'</b></button>';
     }
     html+='<button onclick="game.showShop()" class="shop">+</button>';
     bar.innerHTML=html;
@@ -1063,35 +1063,44 @@ class Game {
   }
   saveScore(){
     if(this._saved) return;
-    let name=document.getElementById('playerName').value.trim()||'玩家';
-    this.recordGameOver(name);
+    this.recordGameOver(this.currentPlayer);
     this._saved=true;
-    document.getElementById('playerName').style.display='none';
-    document.getElementById('gameOverContent').innerHTML+='<p style="color:#78c878;font-size:13px;font-weight:bold">已保存, '+name+'!</p>';
+    document.getElementById('saveStatus').textContent='已保存, '+this.currentPlayer+'!';
   }
   restart(){
-    // 未保存则自动记录
-    if(!this._saved) this.recordGameOver('未署名');
+    if(!this._saved) this.recordGameOver(this.currentPlayer||'未署名');
     this.level=1;this.score=0;this.combo=0;this.maxCombo=0;
     this.usedWords=new Set();this.allWordsSeen=[];
     this.gameTimer=this.mode==='timed'?180:9999;
     document.getElementById('gameOverOverlay').classList.add('hidden');
-    document.getElementById('playerName').style.display='';
     this._saved=false;this._recorded=false;
     this.startLevel();
   }
 
-  // Audio
-  beep(freq,dur){
+  // Audio（共用 AudioContext，移动端兼容）
+  _getAC(){
+    if(!this._audioCtx){
+      this._audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      if(this._audioCtx.state==='suspended') this._audioCtx.resume();
+    }
+    return this._audioCtx;
+  }
+  beep(freq,dur,type='sine',vol=0.12){
     try{
-      let ctx=new(window.AudioContext||window.webkitAudioContext)();
+      let ctx=this._getAC();
       let o=ctx.createOscillator(),g=ctx.createGain();
-      o.type='sine';o.frequency.value=freq;g.gain.value=0.15;
+      o.type=type;o.frequency.value=freq;g.gain.value=vol;
       o.connect(g);g.connect(ctx.destination);
       o.start();g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
       o.stop(ctx.currentTime+dur);
     }catch(e){}
   }
+  sfxClick(){this.beep(660,0.07,'sine',0.10)}       // 选中字母
+  sfxMatch(){this.beep(880,0.12,'sine',0.12);setTimeout(()=>this.beep(1100,0.10,'sine',0.10),80)} // 匹配成功
+  sfxError(){this.beep(180,0.15,'sawtooth',0.06)}   // 误触
+  sfxLevel(){this.beep(660,0.15,'sine',0.15);setTimeout(()=>this.beep(880,0.15,'sine',0.15),120);setTimeout(()=>this.beep(1100,0.2,'sine',0.15),240)} // 过关
+  sfxFever(){for(let i=0;i<4;i++)setTimeout(()=>this.beep(800+i*200,0.08,'sine',0.10),i*80)} // Fever
+  sfxGolden(){this.beep(1200,0.1,'sine',0.12);setTimeout(()=>this.beep(1500,0.1,'sine',0.12),60)} // 金字母
 
   // Update
   update(dt){
@@ -1120,6 +1129,7 @@ class Game {
   }
 
   showGameOver(){
+    this.saveScore();
     let ratings={3:'完美通关!',2:'非常出色!',1:'继续加油!'};
     let wordsDone=Object.values(this.wordRemaining).filter(n=>n<=0).length;
     let html=`<h2>=== 游戏结束 ===</h2>

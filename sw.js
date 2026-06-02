@@ -1,5 +1,5 @@
 // Service Worker - 离线缓存
-const CACHE = 'wordmatch-v2';
+const CACHE = 'wordmatch-v5';
 const FILES = ['/','/index.html','/manifest.json'];
 
 self.addEventListener('install', e => {

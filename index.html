@@ -604,26 +604,44 @@ class Game {
     document.getElementById('profileMsg').textContent='';
   }
   createProfile(){
+    let msg=document.getElementById('profileMsg');
     try{
-    let name=document.getElementById('newProfileName').value.trim();
-    if(!name){document.getElementById('profileMsg').textContent='请输入名字';return}
-    if(this.state.players[name]){document.getElementById('profileMsg').textContent='该名字已存在';return}
-    if(name.length>8){document.getElementById('profileMsg').textContent='名字最多8个字';return}
+    let input=document.getElementById('newProfileName');
+    let name=input.value.trim();
+    msg.textContent='step1:'+name;
+    if(!name){msg.textContent='请输入名字';return}
+    msg.textContent='step2';
+    if(this.state.players[name]){msg.textContent='该名字已存在';return}
+    if(name.length>8){msg.textContent='名字最多8个字';return}
+    msg.textContent='step3';
     this.state.players[name]={high:{timed:0,practice:0,endless:0},games:0,total_score:0,best_combo:0,highest_level:0,achieve:{},totalWords:0,totalPerfect:0,totalGoldens:0,wordMastery:{},memoryPoints:0,unlockedPacks:{},items:{hint:0,shuffle:0,freeze:0,double:0,lightning:0},level3StarAward:{},comboRewardCount:0};
+    msg.textContent='step4';
     this.saveState();
-    document.getElementById('newProfileName').value='';
+    msg.textContent='step5';
+    input.value='';
     this._refreshProfileList();
+    msg.textContent='step6';
     this.selectProfile(name);
-    }catch(e){document.getElementById('profileMsg').textContent='错误: '+e.message}
+    msg.textContent='done';
+    }catch(e){msg.textContent='错误:'+e.message}
   }
   selectProfile(name){
+    let msg=document.getElementById('profileMsg');
+    msg.textContent='sel1';
     this.currentPlayer=name;
+    msg.textContent='sel2';
     this._loadPlayer(name);
+    msg.textContent='sel3';
     this.initItems();
+    msg.textContent='sel4';
     this.saveState();
+    msg.textContent='sel5';
     document.getElementById('profileOverlay').classList.add('hidden');
+    msg.textContent='sel6';
     document.getElementById('playerTag').textContent=name+' ';
+    msg.textContent='sel7';
     this.showMenu();
+    msg.textContent='sel-ok';
   }
   switchProfile(){
     this.saveState();
@@ -856,7 +874,8 @@ class Game {
   levelCleared(){return Object.values(this.wordRemaining).every(n=>n<=0)}
 
   showMenu(){
-    if(!this.currentPlayer){this.showProfileScreen();return}
+    let msg=document.getElementById('profileMsg');
+    if(!this.currentPlayer){msg.textContent='no-player';this.showProfileScreen();return}
     this.phase='menu';
     document.getElementById('menuOverlay').classList.remove('hidden');
     document.getElementById('pauseOverlay').classList.add('hidden');

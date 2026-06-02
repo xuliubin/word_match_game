@@ -542,6 +542,8 @@ class Game {
     setTimeout(()=>{pop.style.opacity='0'},2500);
   }
   _initAchievements(){
+    if(!this.state) this.state={};
+    if(!this.state.achieve) this.state.achieve={};
     this.ACHIEVEMENTS = [
       {id:'first_clear',name:'初学者',desc:'完成第一关',icon:'[Lv1]',check:()=>this.level>=2},
       {id:'words10',name:'拼字新手',desc:'累计拼出10个单词',icon:'[10W]',check:()=>this.state.totalWords>=10},

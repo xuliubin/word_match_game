@@ -273,7 +273,6 @@ class Game {
     this.ctx = this.canvas.getContext('2d');
     this.loadState();
     this.resetAll();
-    this._initAchievements();
     this.showProfileScreen();
     this.setupEvents();
     this.loop();
@@ -288,9 +287,9 @@ class Game {
     this.state.players = this.state.players || {};
     this.state.leaderboard = this.state.leaderboard || {timed:[],practice:[],endless:[]};
     this.currentPlayer = this.state._lastPlayer || '';
-    this._initAchievements();
     if(this.currentPlayer && this.state.players[this.currentPlayer]) this._loadPlayer(this.currentPlayer);
     else { this.currentPlayer=''; this._initEmptyPlayer(); }
+    this._initAchievements();
   }
   _initEmptyPlayer(){
     this.state.high={timed:0,practice:0,endless:0}; this.state.games=0; this.state.total_score=0;
@@ -608,22 +607,24 @@ class Game {
     try{
     let input=document.getElementById('newProfileName');
     let name=input.value.trim();
-    msg.textContent='step1:'+name;
     if(!name){msg.textContent='请输入名字';return}
-    msg.textContent='step2';
     if(this.state.players[name]){msg.textContent='该名字已存在';return}
     if(name.length>8){msg.textContent='名字最多8个字';return}
-    msg.textContent='step3';
     this.state.players[name]={high:{timed:0,practice:0,endless:0},games:0,total_score:0,best_combo:0,highest_level:0,achieve:{},totalWords:0,totalPerfect:0,totalGoldens:0,wordMastery:{},memoryPoints:0,unlockedPacks:{},items:{hint:0,shuffle:0,freeze:0,double:0,lightning:0},level3StarAward:{},comboRewardCount:0};
-    msg.textContent='step4';
     this.saveState();
-    msg.textContent='step5';
     input.value='';
     this._refreshProfileList();
-    msg.textContent='step6';
     this.selectProfile(name);
-    msg.textContent='done';
     }catch(e){msg.textContent='错误:'+e.message}
+  }
+  selectProfile(name){
+    this.currentPlayer=name;
+    this._loadPlayer(name);
+    this.initItems();
+    this.saveState();
+    document.getElementById('profileOverlay').classList.add('hidden');
+    document.getElementById('playerTag').textContent=name+' ';
+    this.showMenu();
   }
   selectProfile(name){
     let msg=document.getElementById('profileMsg');
@@ -874,8 +875,7 @@ class Game {
   levelCleared(){return Object.values(this.wordRemaining).every(n=>n<=0)}
 
   showMenu(){
-    let msg=document.getElementById('profileMsg');
-    if(!this.currentPlayer){msg.textContent='no-player';this.showProfileScreen();return}
+    if(!this.currentPlayer){this.showProfileScreen();return}
     this.phase='menu';
     document.getElementById('menuOverlay').classList.remove('hidden');
     document.getElementById('pauseOverlay').classList.add('hidden');

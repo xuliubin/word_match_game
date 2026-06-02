@@ -918,6 +918,7 @@ class Game {
 
   closeReview(){
     document.getElementById('reviewOverlay').classList.add('hidden');
+    document.getElementById('gameOverOverlay').classList.remove('hidden');
     this.phase='game_over';
   }
   showAchievements(){
@@ -1118,23 +1119,25 @@ class Game {
   sfxFever(){for(let i=0;i<4;i++)setTimeout(()=>this.beep(800+i*200,0.08,'sine',0.10),i*80)} // Fever
   sfxGolden(){this.beep(1200,0.1,'sine',0.12);setTimeout(()=>this.beep(1500,0.1,'sine',0.12),60)} // 金字母
 
-  // 背景音乐 (Web Audio 合成)
+  // 背景音乐 (轻快 C大调五声音阶)
   startBGM(){
     if(this._bgmPlaying) return;
     this._bgmPlaying=true;
-    this._bgmNotes=[262,330,392,330,294,392,440,349,330,294,262,330]; // C大调简单旋律
-    this._bgmIdx=0;this._bgmVol=0.025;
+    // 轻快旋律: C-D-E-G-A 五声音阶，跳跃节奏
+    this._bgmNotes=[523,587,659,784,880,784,659,587,523,659,784,880,1047,880,784,659];
+    this._bgmIdx=0;this._bgmVol=0.03;
     this._playBGMNote();
   }
   _playBGMNote(){
     if(!this._bgmPlaying) return;
     let freq=this._bgmNotes[this._bgmIdx%this._bgmNotes.length];
-    // 主音+泛音和弦
-    this.beep(freq,1.2,'sine',this._bgmVol);
-    this.beep(freq*1.5,1.0,'sine',this._bgmVol*0.5);
-    this.beep(freq*2,0.8,'sine',this._bgmVol*0.3);
+    // 清脆主音 + 轻和弦
+    this.beep(freq,0.35,'sine',this._bgmVol);
+    this.beep(freq*1.25,0.25,'triangle',this._bgmVol*0.4);
     this._bgmIdx++;
-    this._bgmTimer=setTimeout(()=>this._playBGMNote(),900);
+    // 跳跃节奏: 长短交替
+    let delay=this._bgmIdx%4===0?550:(this._bgmIdx%2===0?400:250);
+    this._bgmTimer=setTimeout(()=>this._playBGMNote(),delay);
   }
   stopBGM(){
     this._bgmPlaying=false;

@@ -268,13 +268,19 @@ const WORD_CN = {
 
 class Game {
   constructor() {
+    try{
     this.canvas = document.getElementById('grid');
     this.ctx = this.canvas.getContext('2d');
     this.loadState();
     this.resetAll();
+    this._initAchievements();
     this.showProfileScreen();
     this.setupEvents();
     this.loop();
+    }catch(e){
+      document.body.innerHTML='<div style="padding:40px;text-align:center;font-family:sans-serif"><h2>初始化错误</h2><p style="color:red">'+e.message+'</p><pre style="font-size:11px">'+e.stack+'</pre></div>';
+      console.error(e);
+    }
   }
 
   loadState() {
@@ -1238,7 +1244,10 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
   };
 }
 
-const game = new Game();
+let game;
+try{ game = new Game(); }catch(e){
+  document.body.innerHTML='<div style="padding:40px;text-align:center;font-family:sans-serif"><h2>启动失败</h2><p style="color:red">'+e.message+'</p><pre style="font-size:10px">'+e.stack+'</pre></div>';
+}
 </script>
 </body>
 </html>

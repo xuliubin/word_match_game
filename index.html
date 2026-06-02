@@ -274,6 +274,7 @@ class Game {
     this.loadState();
     this.resetAll();
     this.showProfileScreen();
+    this._unlockAudio();
     this.setupEvents();
     this.loop();
     }catch(e){
@@ -1077,17 +1078,30 @@ class Game {
     this.startLevel();
   }
 
-  // Audio（共用 AudioContext，移动端兼容）
+  // Audio（共用 AudioContext，移动端首次触摸激活）
   _getAC(){
     if(!this._audioCtx){
-      this._audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-      if(this._audioCtx.state==='suspended') this._audioCtx.resume();
+      try{
+        this._audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      }catch(e){this._audioCtx=null;return null}
+    }
+    if(this._audioCtx&&this._audioCtx.state==='suspended'){
+      this._audioCtx.resume();
     }
     return this._audioCtx;
+  }
+  // 在任何用户触摸时激活 AudioContext
+  _unlockAudio(){
+    if(!this._audioUnlocked){
+      this._audioUnlocked=true;
+      document.addEventListener('touchstart',()=>this._getAC(),{once:true});
+      document.addEventListener('click',()=>this._getAC(),{once:true});
+    }
   }
   beep(freq,dur,type='sine',vol=0.12){
     try{
       let ctx=this._getAC();
+      if(!ctx) return;
       let o=ctx.createOscillator(),g=ctx.createGain();
       o.type=type;o.frequency.value=freq;g.gain.value=vol;
       o.connect(g);g.connect(ctx.destination);

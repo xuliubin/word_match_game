@@ -1,0 +1,16 @@
+{
+  "name": "Word Match 单词消消乐",
+  "short_name": "Word Match",
+  "description": "英语单词记忆消消乐游戏",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff2f5",
+  "theme_color": "#fff2f5",
+  "icons": [{
+    "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff2f5'/><text x='50' y='55' text-anchor='middle' font-size='40' font-family='sans-serif' fill='%23e8963c'>W</text><text x='50' y='80' text-anchor='middle' font-size='16' font-family='sans-serif' fill='%23c8b8b8'>Match</text></svg>",
+    "sizes": "any",
+    "type": "image/svg+xml",
+    "purpose": "any"
+  }]
+}

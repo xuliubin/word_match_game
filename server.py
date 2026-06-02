@@ -9,7 +9,7 @@ FastAPI + SQLite，支持跨设备分数同步
 import os
 import json
 from datetime import datetime, date
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -84,8 +84,9 @@ def startup():
 # ============================================================
 
 @app.post("/api/submit")
-def submit_score(data: dict):
+async def submit_score(request: Request):
     """提交一条游戏记录"""
+    data = await request.json()
     player_name = (data.get("name") or "玩家").strip()[:20]
     mode = data.get("mode", "timed")
     score = int(data.get("score", 0))
@@ -264,8 +265,9 @@ def root():
 # 启动
 # ============================================================
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8765))
     print("=" * 50)
-    print("  Word Match 云端排行榜服务器")
-    print("  访问 http://localhost:8765 查看 API 文档")
+    print(f"  Word Match 云端排行榜服务器")
+    print(f"  端口: {port}")
     print("=" * 50)
-    uvicorn.run(app, host="0.0.0.0", port=8765)
+    uvicorn.run(app, host="0.0.0.0", port=port)

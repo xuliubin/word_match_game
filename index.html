@@ -86,6 +86,7 @@ canvas{display:block;touch-action:manipulation}
       <button id="btnHint" onclick="game.hintReveal()" style="background:#f0c878">提示</button>
       <button id="btnShuffle" onclick="game.hintShuffle()" style="background:#a0d8c8">重排</button>
       <button id="btnPause" onclick="game.togglePause()">暂停</button>
+	      <button id="btnMusic" onclick="game.toggleBGM()" style="background:#e8d5f0">♪</button>
       <button id="btnEndGame" onclick="game.endGame()" style="background:#e8968c;display:none">结束</button>
     </div>
     <div id="hints"></div>
@@ -1335,6 +1336,11 @@ class Game {
     document.getElementById('btnHint').style.display=showBtns?'inline-block':'none';
     document.getElementById('btnShuffle').style.display=showBtns?'inline-block':'none';
     document.getElementById('btnPause').style.display=(this.phase==='play'||this.phase==='paused')?'inline-block':'none';
+    // 音乐按钮状态
+    let musicBtn=document.getElementById('btnMusic');
+    musicBtn.style.display=(this.phase==='play'||this.phase==='memorize')?'inline-block':'none';
+    musicBtn.style.background=this._bgmPlaying?'#e8d5f0':'#d8d8d8';
+    musicBtn.style.opacity=this._bgmPlaying?'1':'0.5';
     // 练习/无尽模式显示"结束"按钮
     let isPracticeOrEndless=this.mode==='practice'||this.mode==='endless';
     document.getElementById('btnEndGame').style.display=(showBtns&&isPracticeOrEndless)?'inline-block':'none';

@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#fff2f5">
+<link rel="manifest" href="manifest.json">
+<title>Word Match 单词消消乐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff2f5;font-family:'Microsoft YaHei','PingFang SC',sans-serif;
+  display:flex;justify-content:center;align-items:center;min-height:100dvh;
+  overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{width:100%;max-width:420px;height:100dvh;display:flex;flex-direction:column;background:#fff5f7}
+/* === Top bar: two-line compact === */
+#topbar{padding:6px 12px 4px;background:#fff;border-bottom:1px solid #ffe8ec;flex-shrink:0}
+#topbar .t1{display:flex;justify-content:space-between;align-items:center}
+#topbar .t1 span{font-size:12px;color:#503737}
+#topbar .t1 .pl{color:#c8b8b8;font-size:10px}
+#topbar .t2{text-align:center;font-size:16px;font-weight:bold;padding:2px 0}
+/* === Panel === */
+#panel{margin:6px 10px;padding:8px 12px;background:#fff;border-radius:14px;
+  box-shadow:0 1px 6px rgba(200,180,180,.12);text-align:center;flex-shrink:0;min-height:50px}
+#panel .mem-label{font-size:12px;color:#e86060}
+#panel .words{font-size:13px;color:#e8963c;font-weight:bold;word-break:break-all;line-height:1.3}
+#panel .play-label{font-size:12px;color:#968888}
+#panel .cn-hint{font-size:13px;color:#e8963c;margin-top:1px}
+#panel .progress{font-size:10px;color:#b4a0a0;margin-top:1px}
+/* === Canvas: fills space === */
+#canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:3px;min-height:0}
+canvas{display:block;touch-action:manipulation}
+/* === Bottom: compact card === */
+#bottom{padding:6px 10px 8px;background:#fff;border-top:1px solid #ffe8ec;flex-shrink:0}
+#selected{font-size:17px;color:#e8b832;font-weight:bold;text-align:center;min-height:22px}
+#itemRow{display:flex;justify-content:center;gap:5px;padding:4px 0}
+#itemRow button{padding:2px 7px;border-radius:8px;font-size:10px;border:1px solid #e8d5d5;
+  background:#fff;color:#503737;cursor:pointer}
+#itemRow button.empty{background:#f8f8f8;color:#d8d0d0;border-style:dashed}
+#itemRow button.shop{background:#fff8f0;color:#c8b8b8;border:1px dashed #e8d5d5;font-size:9px}
+#ctrlRow{display:flex;align-items:center;justify-content:center;gap:8px;padding:2px 0}
+#ctrlRow button{padding:6px 20px;border:none;border-radius:18px;font-size:14px;font-weight:bold;
+  cursor:pointer;background:#ffb48c;color:#fff;box-shadow:0 2px 4px rgba(200,160,140,.3)}
+#ctrlRow button:active{transform:scale(.95);background:#ff9660}
+#hints{font-size:9px;color:#d0c8c8;text-align:center;padding-top:2px}
+/* === Overlays === */
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;
+  align-items:center;justify-content:center;z-index:10}
+.overlay .card{background:#fff;border-radius:24px;padding:22px 16px;max-width:360px;
+  width:92%;text-align:center;box-shadow:0 4px 24px rgba(180,150,150,.25)}
+.overlay h2{font-size:22px;color:#503737;margin-bottom:12px}
+.overlay p{font-size:14px;color:#968888;margin:6px 0;line-height:1.5}
+.overlay .big{font-size:32px;color:#e8963c;font-weight:bold;margin:8px 0}
+.overlay button{margin:8px 4px;padding:10px 22px;border:none;border-radius:20px;
+  font-size:14px;font-weight:bold;cursor:pointer;background:#ffb48c;color:#fff}
+.overlay button:active{background:#ff9660}
+.overlay button.secondary{background:#e8d5d5;color:#786868}
+.hidden{display:none!important}
+#pauseOverlay{background:rgba(255,240,245,.9)}
+.stars{font-size:28px;letter-spacing:4px;line-height:1.2}
+.star-gold{color:#f0b830}.star-empty{color:#e0d8d0}
+.unlock-pop{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#fff7e0,#fff);
+  border:2px solid #f0b830;border-radius:16px;padding:14px 22px;box-shadow:0 4px 20px rgba(200,160,50,.3);
+  z-index:101;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="t1">
+      <span><span class="pl" id="playerTag"></span> <span id="levelInfo">第1关</span></span>
+      <span id="scoreInfo">得分:0 MP:0</span>
+    </div>
+    <div class="t2" id="timerInfo" style="color:#64b4e6">3:00</div>
+  </div>
+  <div id="panel"><div id="panelContent"></div></div>
+  <div id="canvas-wrap"><canvas id="grid"></canvas></div>
+  <div id="bottom">
+    <div id="selected"></div>
+    <div id="itemRow"></div>
+    <div id="ctrlRow">
+      <button id="btnClear" onclick="game.clear()">清除</button>
+    </div>
+    <div id="hints"></div>
+  </div>
+</div>
+
+<div id="profileOverlay" class="overlay"><div class="card">
+  <h2>Word Match</h2>
+  <p style="color:#c8b8b8">选择你的学习档案</p>
+  <div id="profileList" style="margin:8px 0"></div>
+  <div style="display:flex;gap:6px;justify-content:center;margin:8px 0">
+    <input id="newProfileName" placeholder="输入新名字" style="padding:6px 10px;border:2px solid #e8d5d5;border-radius:12px;font-size:13px;width:140px;text-align:center">
+    <button onclick="game.createProfile()" style="font-size:12px;padding:6px 14px">创建</button>
+  </div>
+  <p id="profileMsg" style="font-size:11px;color:#e86060;min-height:16px"></p>
+</div></div>
+
+<div id="menuOverlay" class="overlay hidden"><div class="card">
+  <h2>Word Match</h2>
+  <p>英语单词消消乐 ~^.^~</p>
+  <div id="menuBtns"></div>
+  <p style="font-size:11px;color:#c8b8b8;margin-top:12px" id="statsLine"></p>
+  <p style="font-size:12px;color:#ffb48c;cursor:pointer" onclick="game.startGame()">点击模式开始</p>
+  <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center">
+    <button class="secondary" style="padding:5px 10px;font-size:11px" onclick="game.showAchievements()">成就</button>
+    <button class="secondary" style="padding:5px 10px;font-size:11px" onclick="game.showLeaderboard('timed')">排行</button>
+    <button class="secondary" style="padding:5px 10px;font-size:11px" onclick="game.showCollection()">图鉴</button>
+    <button class="secondary" style="padding:5px 10px;font-size:11px" onclick="game.showShop()">商店</button>
+    <button class="secondary" style="padding:5px 10px;font-size:11px" onclick="game.dailyCheckIn()">签到</button>
+  </div>
+</div></div>
+
+<div id="pauseOverlay" class="overlay hidden"><div class="card">
+  <h2>| |  暂停中...</h2>
+  <p>按 P 继续 | 按 M 回菜单</p>
+</div></div>
+
+<div id="gameOverOverlay" class="overlay hidden"><div class="card">
+  <div id="gameOverContent"></div>
+  <div style="margin:8px 0"><input id="playerName" placeholder="输入名字记入排行榜" style="padding:8px 12px;border:2px solid #e8d5d5;border-radius:12px;font-size:14px;width:80%;text-align:center"></div>
+  <button onclick="game.saveScore()">保存成绩</button>
+  <button class="secondary" onclick="game.restart()">再来一局</button>
+  <button class="secondary" onclick="game.showReview()">单词回顾</button>
+  <button class="secondary" onclick="game.backToMenu()">回菜单</button>
+</div></div>
+
+<div id="reviewOverlay" class="overlay hidden"><div class="card" style="max-height:80vh;overflow-y:auto">
+  <h2>=== 单词回顾 ===</h2>
+  <div id="reviewContent"></div>
+  <button onclick="game.closeReview()">关闭</button>
+</div></div>
+
+<div id="achieveOverlay" class="overlay hidden"><div class="card" style="max-height:80vh;overflow-y:auto">
+  <h2>=== 成就 ===</h2>
+  <div id="achieveContent"></div>
+  <button onclick="game.closeAchieve()">关闭</button>
+</div></div>
+
+<div id="leaderboardOverlay" class="overlay hidden"><div class="card" style="max-height:80vh;overflow-y:auto">
+  <h2>=== 排行榜 ===</h2>
+  <div id="leaderboardTabs" style="margin-bottom:10px"></div>
+  <div id="leaderboardContent"></div>
+  <button onclick="game.closeLeaderboard()">关闭</button>
+</div></div>
+
+<div id="achievePopup" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#fff;border-radius:16px;padding:12px 20px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:100;font-size:14px;font-weight:bold;color:#e8963c;transition:opacity .3s;opacity:0;pointer-events:none"></div>
+<div id="itemShopOverlay" class="overlay hidden"><div class="card">
+  <h2>=== 道具商店 ===</h2>
+  <p style="font-size:12px;color:#c8b8b8">用记忆点数兑换道具</p>
+  <div id="shopContent"></div>
+  <button onclick="game.closeShop()">关闭</button>
+</div></div>
+
+<div id="unlockPopup" class="unlock-pop"></div>
+
+<div id="collectionOverlay" class="overlay hidden"><div class="card" style="max-height:80vh;overflow-y:auto">
+  <h2>=== 单词图鉴 ===</h2>
+  <div id="collectionContent"></div>
+  <button onclick="game.closeCollection()">关闭</button>
+</div></div>
+
+<script>
+// 注册 Service Worker（离线支持）
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js');
+}
+// ==================== GAME ENGINE ====================
+const WORD_POOL = {
+  A1: ["ONE","TWO","FOUR","FIVE","SIX","NINE","TEN","WEEK","YEAR","MAY","JUNE","JULY",
+    "CAT","DOG","BEAR","LION","FROG","DUCK","FISH","BIRD","WOLF","DEER","GOAT","MOUSE",
+    "HEAD","FACE","EYE","EAR","NOSE","HAND","FOOT","BACK","NECK","HAIR","ARM","LEG",
+    "CAKE","EGG","RICE","MEAT","SOUP","SALT","TEA","MILK","SUN","MOON","STAR","RAIN",
+    "SNOW","WIND","SKY","SEA","LAKE","WOOD","SAND","ROCK","HILL","FIRE","GOLD","ROSE",
+    "HOME","CITY","TOWN","ROAD","PARK","SHOP","DOOR","FARM","DESK","LAMP","SHIP","BALL",
+    "BABY","GIRL","BOY","MAN","KING","READ","COOK","WALK","TALK","SING","JUMP","SWIM",
+    "RIDE","DRAW","OPEN","PLAY","RUN","GOOD","NICE","LONG","TALL","SOFT","HARD","DARK",
+    "RICH","POOR","FREE","KIND","REAL","FULL","SURE","TRUE","SAFE","WISE","WILD","DEEP",
+    "HIGH","WEAK","COLD","WARM","FAST","SLOW","BIG","RED","BLUE","PINK","HAT","CUP",
+    "BOOK","FOOD","LOVE","TIME","GAME","SONG","COAT","SOCK"],
+  A2: ["THREE","SEVEN","EIGHT","FIRST","THIRD","MARCH","APRIL","MONTH","HORSE","SNAKE",
+    "TIGER","WHALE","PANDA","CAMEL","SHEEP","MOUTH","TOOTH","HEART","BRAIN","APPLE",
+    "GRAPE","LEMON","BREAD","SUGAR","JUICE","HONEY","FRUIT","SALAD","WATER","EARTH",
+    "CLOUD","STONE","LIGHT","FLAME","RIVER","OCEAN","STORM","WHEAT","PLANT","WORLD",
+    "HOUSE","TOWER","BRIDGE","CASTLE","CHAIR","TABLE","WATCH","RADIO","PAPER","KNIFE",
+    "SPOON","MONEY","QUEEN","CHILD","WOMAN","GHOST","ROBOT","DANCE","DREAM","DRINK",
+    "SLEEP","THINK","WRITE","LEARN","TEACH","START","STUDY","SPEAK","BUILD","BREAK",
+    "DRIVE","CLIMB","FIGHT","LAUGH","SMILE","VOICE","UNION","GREEN","BLACK","WHITE",
+    "BROWN","HAPPY","ANGRY","SORRY","TIRED","CLEAN","DIRTY","HEAVY","SWEET","FRESH",
+    "QUIET","ROUND","SHARP","SMART","YOUNG","MUSIC","PEACE","SHIRT","SHOE","DRESS",
+    "BELT","CLASS","PLANE","TRAIN"],
+  B1: ["ELEVEN","TWELVE","TWENTY","THIRTY","SECOND","AUGUST","MONDAY","FRIDAY","SUNDAY",
+    "SPRING","SUMMER","AUTUMN","WINTER","RABBIT","MONKEY","TURTLE","DRAGON","EAGLE",
+    "INSECT","BANANA","CHERRY","ORANGE","POTATO","NOODLE","CHEESE","BUTTER","COFFEE",
+    "FOREST","GARDEN","ISLAND","JUNGLE","DESERT","NATURE","SILVER","MARBLE","ROCKET",
+    "SCHOOL","STREET","MARKET","CHURCH","TEMPLE","CAMERA","WINDOW","BOTTLE","MIRROR",
+    "LADDER","NEEDLE","HAMMER","GUITAR","VIOLIN","PENCIL","JACKET","FAMILY","MOTHER",
+    "FATHER","SISTER","FRIEND","HUNTER","KNIGHT","EMPIRE","YELLOW","PURPLE","STRONG",
+    "FAMOUS","HONEST","POLITE","NARROW","SIMPLE","BRIGHT","HEAVEN","DINNER","CANDLE","FINGER"],
+  B2: ["THIRTEEN","FOURTEEN","FIFTEEN","HUNDRED","JANUARY","FEBRUARY","SEPTEMBER",
+    "OCTOBER","NOVEMBER","DECEMBER","TUESDAY","WEDNESDAY","THURSDAY","SATURDAY",
+    "ELEPHANT","DOLPHIN","CHICKEN","SANDWICH","MOUNTAIN","VOLCANO","RAINBOW",
+    "SUNSHINE","WEATHER","PACIFIC","DIAMOND","TREASURE","HOSPITAL","AIRPORT",
+    "LIBRARY","FACTORY","KITCHEN","VILLAGE","KINGDOM","DAUGHTER","BROTHER","CHAMPION",
+    "BEAUTIFUL","FANTASTIC","GENEROUS","IMPORTANT","MAGICAL","STRENGTH","HISTORY",
+    "LANGUAGE","QUESTION","EXERCISE","NOTEBOOK","PAINTING","UMBRELLA","COMPUTER",
+    "TELEPHONE","BIRTHDAY","HOLIDAY","JOURNEY","TOMORROW","MORNING","EVENING",
+    "LETTER","FOOTBALL"]
+};
+const WORD_CN = {
+  ONE:"一",TWO:"二",THREE:"三",FOUR:"四",FIVE:"五",SIX:"六",SEVEN:"七",EIGHT:"八",NINE:"九",TEN:"十",
+  ELEVEN:"十一",TWELVE:"十二",THIRTEEN:"十三",FOURTEEN:"十四",FIFTEEN:"十五",TWENTY:"二十",
+  THIRTY:"三十",HUNDRED:"百",FIRST:"第一",SECOND:"第二",THIRD:"第三",
+  JANUARY:"一月",FEBRUARY:"二月",MARCH:"三月",APRIL:"四月",MAY:"五月",JUNE:"六月",
+  JULY:"七月",AUGUST:"八月",SEPTEMBER:"九月",OCTOBER:"十月",NOVEMBER:"十一月",DECEMBER:"十二月",
+  MONDAY:"周一",TUESDAY:"周二",WEDNESDAY:"周三",THURSDAY:"周四",FRIDAY:"周五",SATURDAY:"周六",SUNDAY:"周日",
+  SPRING:"春",SUMMER:"夏",AUTUMN:"秋",WINTER:"冬",WEEK:"周",MONTH:"月",YEAR:"年",
+  CAT:"猫",DOG:"狗",BEAR:"熊",LION:"狮子",FROG:"青蛙",DUCK:"鸭",FISH:"鱼",BIRD:"鸟",
+  WOLF:"狼",DEER:"鹿",GOAT:"山羊",MOUSE:"老鼠",HORSE:"马",SNAKE:"蛇",TIGER:"老虎",
+  WHALE:"鲸",PANDA:"熊猫",CAMEL:"骆驼",SHEEP:"羊",RABBIT:"兔",MONKEY:"猴",TURTLE:"龟",
+  DRAGON:"龙",EAGLE:"鹰",INSECT:"昆虫",ELEPHANT:"象",DOLPHIN:"海豚",CHICKEN:"鸡",
+  HEAD:"头",FACE:"脸",EYE:"眼睛",EAR:"耳朵",NOSE:"鼻子",HAND:"手",FOOT:"脚",
+  BACK:"背",NECK:"脖子",HAIR:"头发",ARM:"手臂",LEG:"腿",MOUTH:"嘴",TOOTH:"牙齿",HEART:"心",BRAIN:"大脑",
+  CAKE:"蛋糕",EGG:"蛋",RICE:"米饭",MEAT:"肉",SOUP:"汤",SALT:"盐",TEA:"茶",MILK:"牛奶",
+  APPLE:"苹果",GRAPE:"葡萄",LEMON:"柠檬",BREAD:"面包",SUGAR:"糖",JUICE:"果汁",HONEY:"蜂蜜",
+  FRUIT:"水果",SALAD:"沙拉",WATER:"水",BANANA:"香蕉",CHERRY:"樱桃",ORANGE:"橙子",POTATO:"土豆",
+  NOODLE:"面条",CHEESE:"奶酪",BUTTER:"黄油",COFFEE:"咖啡",SANDWICH:"三明治",
+  SUN:"太阳",MOON:"月亮",STAR:"星星",RAIN:"雨",SNOW:"雪",WIND:"风",SKY:"天空",SEA:"海",LAKE:"湖",
+  WOOD:"木头",SAND:"沙",ROCK:"岩石",HILL:"山丘",FIRE:"火",GOLD:"金子",ROSE:"玫瑰",
+  EARTH:"地球",CLOUD:"云",STONE:"石头",LIGHT:"光",FLAME:"火焰",RIVER:"河",OCEAN:"海洋",
+  STORM:"暴风雨",WHEAT:"小麦",PLANT:"植物",WORLD:"世界",FOREST:"森林",GARDEN:"花园",
+  ISLAND:"岛",JUNGLE:"丛林",DESERT:"沙漠",NATURE:"自然",SILVER:"银",MARBLE:"大理石",ROCKET:"火箭",
+  MOUNTAIN:"山",VOLCANO:"火山",RAINBOW:"彩虹",SUNSHINE:"阳光",WEATHER:"天气",PACIFIC:"太平洋",
+  DIAMOND:"钻石",TREASURE:"宝藏",
+  HOME:"家",CITY:"城市",TOWN:"城镇",ROAD:"路",PARK:"公园",SHOP:"商店",DOOR:"门",FARM:"农场",
+  DESK:"书桌",LAMP:"灯",SHIP:"船",BALL:"球",HOUSE:"房子",TOWER:"塔",BRIDGE:"桥",CASTLE:"城堡",
+  CHAIR:"椅子",TABLE:"桌子",WATCH:"手表",RADIO:"收音机",PAPER:"纸",KNIFE:"刀",SPOON:"勺",MONEY:"钱",
+  SCHOOL:"学校",STREET:"街道",MARKET:"市场",CHURCH:"教堂",TEMPLE:"寺庙",CAMERA:"相机",
+  WINDOW:"窗户",BOTTLE:"瓶",MIRROR:"镜子",LADDER:"梯子",NEEDLE:"针",HAMMER:"锤子",
+  GUITAR:"吉他",VIOLIN:"小提琴",PENCIL:"铅笔",JACKET:"夹克",HOSPITAL:"医院",AIRPORT:"机场",
+  LIBRARY:"图书馆",FACTORY:"工厂",KITCHEN:"厨房",VILLAGE:"村庄",KINGDOM:"王国",
+  BABY:"婴儿",GIRL:"女孩",BOY:"男孩",MAN:"男人",KING:"国王",QUEEN:"女王",CHILD:"孩子",
+  WOMAN:"女人",GHOST:"幽灵",ROBOT:"机器人",FAMILY:"家庭",MOTHER:"母亲",FATHER:"父亲",
+  SISTER:"姐妹",FRIEND:"朋友",HUNTER:"猎人",KNIGHT:"骑士",EMPIRE:"帝国",DAUGHTER:"女儿",
+  BROTHER:"兄弟",CHAMPION:"冠军",
+  READ:"读",COOK:"做饭",WALK:"走",TALK:"说",SING:"唱",JUMP:"跳",SWIM:"游泳",RIDE:"骑",
+  DRAW:"画",OPEN:"打开",PLAY:"玩",RUN:"跑",DANCE:"跳舞",DREAM:"做梦",DRINK:"喝",SLEEP:"睡",
+  THINK:"想",WRITE:"写",LEARN:"学",TEACH:"教",START:"开始",STUDY:"学习",SPEAK:"说",
+  BUILD:"建",BREAK:"打破",DRIVE:"驾驶",CLIMB:"爬",FIGHT:"战斗",LAUGH:"笑",SMILE:"微笑",
+  VOICE:"声音",UNION:"联合",
+  GOOD:"好",NICE:"好",LONG:"长",TALL:"高",SOFT:"软",HARD:"硬",DARK:"暗",RICH:"富",POOR:"穷",
+  FREE:"自由",KIND:"善良",REAL:"真",FULL:"满",SURE:"确定",TRUE:"真实",SAFE:"安全",WISE:"明智",
+  WILD:"野",DEEP:"深",HIGH:"高",WEAK:"弱",COLD:"冷",WARM:"暖",FAST:"快",SLOW:"慢",BIG:"大",
+  RED:"红",BLUE:"蓝",PINK:"粉",GREEN:"绿",BLACK:"黑",WHITE:"白",BROWN:"棕",HAPPY:"快乐",
+  ANGRY:"生气",SORRY:"抱歉",TIRED:"累",CLEAN:"干净",DIRTY:"脏",HEAVY:"重",SWEET:"甜",
+  FRESH:"新鲜",QUIET:"安静",ROUND:"圆",SHARP:"锋利",SMART:"聪明",YOUNG:"年轻",MUSIC:"音乐",
+  PEACE:"和平",YELLOW:"黄",PURPLE:"紫",STRONG:"强壮",FAMOUS:"著名",HONEST:"诚实",POLITE:"礼貌",
+  NARROW:"窄",SIMPLE:"简单",BRIGHT:"明亮",HEAVEN:"天堂",BEAUTIFUL:"美丽",FANTASTIC:"极好",
+  GENEROUS:"慷慨",IMPORTANT:"重要",MAGICAL:"神奇",STRENGTH:"力量",HISTORY:"历史",LANGUAGE:"语言",
+  QUESTION:"问题",EXERCISE:"练习",NOTEBOOK:"笔记本",PAINTING:"绘画",UMBRELLA:"雨伞",
+  COMPUTER:"电脑",TELEPHONE:"电话",BIRTHDAY:"生日",HOLIDAY:"假期",JOURNEY:"旅程",
+  TOMORROW:"明天",MORNING:"早晨",EVENING:"傍晚",LETTER:"信件",FOOTBALL:"足球",
+  HAT:"帽子",CUP:"杯子",BOOK:"书",FOOD:"食物",LOVE:"爱",TIME:"时间",GAME:"游戏",SONG:"歌曲",
+  COAT:"外套",SHIRT:"衬衫",SHOE:"鞋",DRESS:"连衣裙",BELT:"腰带",SOCK:"袜子",CLASS:"班级",
+  PLANE:"飞机",TRAIN:"火车",DINNER:"晚餐",CANDLE:"蜡烛",FINGER:"手指"
+};
+
+class Game {
+  constructor() {
+    this.canvas = document.getElementById('grid');
+    this.ctx = this.canvas.getContext('2d');
+    this.loadState();
+    this.resetAll();
+    this.showProfileScreen();
+    this.setupEvents();
+    this.loop();
+  }
+
+  loadState() {
+    try { this.state = JSON.parse(localStorage.getItem('wm_state')) || {}; } catch(e) { this.state = {}; }
+    this.state.players = this.state.players || {};
+    this.state.leaderboard = this.state.leaderboard || {timed:[],practice:[],endless:[]};
+    this.currentPlayer = this.state._lastPlayer || '';
+    this._initAchievements();
+    if(this.currentPlayer && this.state.players[this.currentPlayer]) this._loadPlayer(this.currentPlayer);
+    else { this.currentPlayer=''; this._initEmptyPlayer(); }
+  }
+  _initEmptyPlayer(){
+    this.state.high={timed:0,practice:0,endless:0}; this.state.games=0; this.state.total_score=0;
+    this.state.best_combo=0; this.state.highest_level=0; this.state.achieve={};
+    this.state.totalWords=0; this.state.totalPerfect=0; this.state.totalGoldens=0;
+    this.state.wordMastery={}; this.state.memoryPoints=0; this.state.unlockedPacks={};
+    this.state.items={hint:0,shuffle:0,freeze:0,double:0,lightning:0};
+    this.state.level3StarAward={}; this.state.comboRewardCount=0;
+  }
+  _loadPlayer(name){
+    let p=this.state.players[name]||{};
+    this.state.high=p.high||{timed:0,practice:0,endless:0}; this.state.games=p.games||0;
+    this.state.total_score=p.total_score||0; this.state.best_combo=p.best_combo||0;
+    this.state.highest_level=p.highest_level||0; this.state.achieve=p.achieve||{};
+    this.state.totalWords=p.totalWords||0; this.state.totalPerfect=p.totalPerfect||0;
+    this.state.totalGoldens=p.totalGoldens||0; this.state.wordMastery=p.wordMastery||{};
+    this.state.memoryPoints=p.memoryPoints||0; this.state.unlockedPacks=p.unlockedPacks||{};
+    this.state.items=p.items||{hint:0,shuffle:0,freeze:0,double:0,lightning:0};
+    this.state.level3StarAward=p.level3StarAward||{};
+    this.state.comboRewardCount=p.comboRewardCount||0;
+  }
+  saveState() {
+    if(this.currentPlayer){
+      this.state.players[this.currentPlayer]={
+        high:this.state.high,games:this.state.games,total_score:this.state.total_score,
+        best_combo:this.state.best_combo,highest_level:this.state.highest_level,
+        achieve:this.state.achieve,totalWords:this.state.totalWords,
+        totalPerfect:this.state.totalPerfect,totalGoldens:this.state.totalGoldens,
+        wordMastery:this.state.wordMastery,memoryPoints:this.state.memoryPoints,
+        unlockedPacks:this.state.unlockedPacks,items:this.state.items,
+        level3StarAward:this.state.level3StarAward,comboRewardCount:this.state.comboRewardCount,
+      };
+    }
+    this.state._lastPlayer=this.currentPlayer;
+    try { localStorage.setItem('wm_state',JSON.stringify(this.state)); } catch(e) {}
+  }
+  // 星星渲染
+  renderStars(n){let h='';for(let i=0;i<3;i++)h+=i<n?'<span class="star-gold">&#9733;</span>':'<span class="star-empty">&#9734;</span>';return'<span class="stars">'+h+'</span>'}
+  // ====== 记忆掌握系统 (基于艾宾浩斯遗忘曲线: 20次重复=长期记忆) ======
+  initWordPacks(){
+    this.WORD_PACKS=[
+      // 根节点 (免费)
+      {id:'p01',name:'基础动物',words:'CAT,DOG,BIRD,FISH,BEAR,LION,FROG,DUCK,WOLF,DEER',cost:0,parent:null,desc:'常见的动物单词'},
+      {id:'p02',name:'身体部位',words:'HEAD,EYE,EAR,NOSE,HAND,FOOT,BACK,HAIR,ARM,LEG',cost:0,parent:null,desc:'认识自己的身体'},
+      {id:'p03',name:'日常动作',words:'RUN,WALK,TALK,SING,JUMP,SWIM,RIDE,DRAW,PLAY,COOK',cost:5,parent:null,desc:'每天都会用到的动词'},
+      // 动物分支
+      {id:'p04',name:'农场动物',words:'GOAT,MOUSE,HORSE,SHEEP,RABBIT,DUCK,HILL,WOOD,ROCK,SAND',cost:5,parent:'p01',desc:'农场里的朋友们'},
+      {id:'p05',name:'野生动物',words:'SNAKE,TIGER,WHALE,PANDA,CAMEL,MONKEY,TURTLE,EAGLE,DRAGON,INSECT',cost:8,parent:'p04',desc:'大自然中的动物'},
+      {id:'p06',name:'海洋天空',words:'DOLPHIN,ELEPHANT,CHICKEN,SEA,SKY,FIRE,GOLD,ROSE,SHIP,BALL',cost:12,parent:'p05',desc:'海陆空的奇妙生物'},
+      // 身体→健康分支
+      {id:'p07',name:'健康饮食',words:'CAKE,EGG,RICE,MEAT,SOUP,SALT,TEA,MILK,FOOD,CUP',cost:5,parent:'p02',desc:'吃出健康'},
+      {id:'p08',name:'水果蔬菜',words:'APPLE,GRAPE,LEMON,BREAD,SUGAR,JUICE,HONEY,FRUIT,SALAD,WATER',cost:8,parent:'p07',desc:'美味的蔬果'},
+      {id:'p09',name:'高级美食',words:'BANANA,CHERRY,ORANGE,POTATO,NOODLE,CHEESE,BUTTER,COFFEE,SANDWICH',cost:12,parent:'p08',desc:'世界各地的美食'},
+      // 动作分支
+      {id:'p10',name:'进阶动词',words:'DANCE,DREAM,DRINK,SLEEP,THINK,WRITE,LEARN,TEACH,START,STUDY,SPEAK',cost:5,parent:'p03',desc:'更丰富的表达'},
+      {id:'p11',name:'动作进阶',words:'BUILD,BREAK,DRIVE,CLIMB,FIGHT,LAUGH,SMILE,VOICE,UNION,MUSIC,PEACE',cost:8,parent:'p10',desc:'精准的动作描述'},
+      {id:'p12',name:'抽象表达',words:'BEAUTIFUL,FANTASTIC,GENEROUS,IMPORTANT,MAGICAL,STRENGTH,HISTORY,LANGUAGE,QUESTION,EXERCISE',cost:15,parent:'p11',desc:'高级词汇的殿堂'},
+      // 自然分支
+      {id:'p13',name:'天气自然',words:'SUN,MOON,STAR,RAIN,SNOW,WIND,LAKE,CLOUD,STORM,EARTH',cost:5,parent:'p01',desc:'仰望天空'},
+      {id:'p14',name:'地理世界',words:'RIVER,OCEAN,FOREST,GARDEN,ISLAND,JUNGLE,DESERT,NATURE,MOUNTAIN,VOLCANO,WORLD',cost:8,parent:'p13',desc:'我们生活的星球'},
+      {id:'p15',name:'自然奇观',words:'RAINBOW,SUNSHINE,WEATHER,PACIFIC,DIAMOND,TREASURE,FLAME,STONE,LIGHT,SILVER,MARBLE,ROCKET',cost:12,parent:'p14',desc:'大自然的宝藏'},
+      // 生活分支
+      {id:'p16',name:'我的家',words:'HOME,CITY,TOWN,ROAD,PARK,SHOP,DOOR,FARM,DESK,LAMP',cost:5,parent:null,desc:'生活的地方'},
+      {id:'p17',name:'建筑物品',words:'HOUSE,TOWER,BRIDGE,CASTLE,CHAIR,TABLE,WATCH,RADIO,PAPER,KNIFE,SPOON,MONEY',cost:5,parent:'p16',desc:'身边的物件'},
+      {id:'p18',name:'城市探索',words:'SCHOOL,STREET,MARKET,CHURCH,TEMPLE,CAMERA,WINDOW,BOTTLE,MIRROR,LADDER',cost:8,parent:'p17',desc:'探索城市的角落'},
+      {id:'p19',name:'科技世界',words:'NEEDLE,HAMMER,GUITAR,VIOLIN,PENCIL,JACKET,NOTEBOOK,PAINTING,UMBRELLA,COMPUTER,TELEPHONE',cost:12,parent:'p18',desc:'改变生活的发明'},
+      // 人物分支
+      {id:'p20',name:'身边人物',words:'BABY,GIRL,BOY,MAN,KING,QUEEN,CHILD,WOMAN,GHOST,ROBOT',cost:5,parent:'p02',desc:'身边的人'},
+      {id:'p21',name:'家庭社会',words:'FAMILY,MOTHER,FATHER,SISTER,FRIEND,DAUGHTER,BROTHER,CHAMPION,HUNTER,KNIGHT,EMPIRE',cost:8,parent:'p20',desc:'家庭与社会角色'},
+      // 数字时间分支
+      {id:'p22',name:'数字入门',words:'ONE,TWO,FOUR,FIVE,SIX,NINE,TEN,WEEK,YEAR,TIME',cost:5,parent:null,desc:'数数看'},
+      {id:'p23',name:'数字进阶',words:'THREE,SEVEN,EIGHT,ELEVEN,TWELVE,TWENTY,THIRTY,FIRST,SECOND,THIRD',cost:5,parent:'p22',desc:'更多的数字'},
+      {id:'p24',name:'日历季节',words:'MONDAY,FRIDAY,SUNDAY,TUESDAY,WEDNESDAY,THURSDAY,SATURDAY,SPRING,SUMMER,AUTUMN,WINTER',cost:8,parent:'p23',desc:'时间与季节'},
+      {id:'p25',name:'数字大师',words:'THIRTEEN,FOURTEEN,FIFTEEN,HUNDRED,JANUARY,FEBRUARY,SEPTEMBER,OCTOBER,NOVEMBER,DECEMBER,MARCH,APRIL,MAY,JUNE,JULY,AUGUST,MONTH',cost:12,parent:'p24',desc:'成为数字专家'},
+      // 形容词分支
+      {id:'p26',name:'颜色世界',words:'RED,BLUE,PINK,GREEN,BLACK,WHITE,BROWN,YELLOW,PURPLE,BIG',cost:5,parent:null,desc:'色彩缤纷'},
+      {id:'p27',name:'感觉描述',words:'GOOD,NICE,COLD,WARM,FAST,SLOW,SOFT,HARD,DARK,RICH,POOR,FREE,KIND',cost:5,parent:'p26',desc:'描述你的感受'},
+      {id:'p28',name:'情绪表达',words:'HAPPY,ANGRY,SORRY,TIRED,CLEAN,DIRTY,HEAVY,SWEET,FRESH,QUIET,ROUND,SHARP',cost:8,parent:'p27',desc:'表达内心世界'},
+      {id:'p29',name:'深度品质',words:'SMART,YOUNG,STRONG,FAMOUS,HONEST,POLITE,NARROW,SIMPLE,BRIGHT,REAL,FULL,SURE,TRUE,SAFE,WISE,WILD,DEEP,HIGH,WEAK',cost:12,parent:'p28',desc:'更深层的品质'},
+      // 服装日常
+      {id:'p30',name:'服装搭配',words:'HAT,CUP,BOOK,FOOD,LOVE,GAME,SONG,COAT,SOCK,SHIRT,SHOE,DRESS,BELT,CLASS,PLANE,TRAIN',cost:5,parent:null,desc:'穿什么出门'},
+      {id:'p31',name:'日常用品',words:'DINNER,CANDLE,FINGER,MOUTH,TOOTH,HEART,BRAIN,BIRTHDAY,HOLIDAY,JOURNEY,TOMORROW,MORNING,EVENING,LETTER,FOOTBALL',cost:10,parent:'p30',desc:'生活中的点滴'},
+      {id:'p32',name:'终极词库',words:'LIBRARY,FACTORY,KITCHEN,VILLAGE,KINGDOM,HEAVEN,TEMPLE,CAMERA,NOTEBOOK,PAINTING,UMBRELLA,COMPUTER,TELEPHONE',cost:20,parent:'p31',desc:'最后的挑战'},
+    ];
+    // 初始化掌握度数据 (0-7级)
+    this.state.wordMastery=this.state.wordMastery||{};
+    this.state.memoryPoints=this.state.memoryPoints||0;
+    this.state.unlockedPacks=this.state.unlockedPacks||{};
+    // 免费包自动解锁
+    for(let p of this.WORD_PACKS){if(p.cost===0)this.state.unlockedPacks[p.id]=true}
+  }
+  // 获取单词当前掌握等级 (0-20)
+  getWordMastery(word){return this.state.wordMastery[word]||0}
+  // 单词升级 (20次=长期记忆, 不同模式奖励不同)
+  levelUpWord(word){
+    let old=this.getWordMastery(word);
+    if(old>=20) return 0;
+    let lv=Math.min(20,old+1);
+    this.state.wordMastery[word]=lv;
+    // 里程碑: Lv5/10/15/20, 按模式给MP
+    let pts=0;
+    if(lv===5||lv===10||lv===15||lv===20){
+      if(this.mode==='timed') pts=(lv===20?4:(lv===10||lv===15?2:1));        // 9MP/词
+      else if(this.mode==='practice') pts=(lv===10?2:(lv===20?3:0));         // 5MP/词
+      else if(this.mode==='endless') pts=(lv===20?5:(lv===10||lv===15?2:1)); // 10MP/词
+    }
+    if(pts>0){this.state.memoryPoints+=pts;this.saveState()}
+    return pts;
+  }
+  // 当前模式倍率
+  getModeMPRate(){return this.mode==='timed'?'9MP/词':this.mode==='practice'?'5MP/词':'10MP/词'}
+  // ====== 道具系统 ======
+  initItems(){
+    this.ITEM_DEFS={
+      hint:{id:'hint',name:'提示卡',desc:'短暂显示目标单词3秒',rarity:'普通',icon:'[?]',mpCost:3},
+      shuffle:{id:'shuffle',name:'重排卡',desc:'随机重排矩阵字母',rarity:'普通',icon:'[~]',mpCost:3},
+      freeze:{id:'freeze',name:'冻结卡',desc:'暂停计时10秒(限时/无尽)',rarity:'稀有',icon:'[=]',mpCost:6},
+      double:{id:'double',name:'双倍卡',desc:'下次匹配得分翻倍',rarity:'稀有',icon:'[x2]',mpCost:6},
+      lightning:{id:'lightning',name:'闪电卡',desc:'自动完成当前正在拼的单词',rarity:'史诗',icon:'[!]',mpCost:10},
+    };
+    this.state.items=this.state.items||{hint:0,shuffle:0,freeze:0,double:0,lightning:0};
+    this.state.dailyChecked=this.state.dailyChecked||'';
+    this.state.level3StarAward=this.state.level3StarAward||{};
+    this.state.comboRewardCount=this.state.comboRewardCount||0;
+  }
+  useItem(id){
+    if(!this.state.items[id]||this.state.items[id]<=0) return false;
+    if(this.phase!=='play'||this.flashTimer>0) return false;
+    if(id==='hint'){
+      let active=this.targetWords.filter(w=>this.wordRemaining[w]>0);
+      if(!active.length) return false;
+      this.revealWord=active[Math.floor(Math.random()*active.length)];this.revealTimer=3;
+    }else if(id==='shuffle'){
+      let g=this.g,all=[];
+      for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++)all.push(this.matrix[r][c]);
+      all.sort(()=>Math.random()-.5);let i=0;
+      for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++)this.matrix[r][c]=all[i++];
+      this.ensureAllFormable();this.selectedCells=[];this.errorCell=null;
+    }else if(id==='freeze'){
+      if(this.mode!=='timed'&&this.mode!=='endless') return false;
+      this.gameTimer+=10;
+    }else if(id==='double'){
+      this._doubleNext=true;
+    }else if(id==='lightning'){
+      let active=this.targetWords.filter(w=>this.wordRemaining[w]>0);
+      if(!active.length) return false;
+      let w=active[0];
+      this.selectedCells=[];
+      let used=new Set();
+      for(let ch of w.toUpperCase()){
+        for(let r=0;r<this.g.rows;r++)for(let c=0;c<this.g.cols;c++){
+          if(!used.has(r+','+c)&&this.matrix[r][c]===ch){this.selectedCells.push([r,c]);used.add(r+','+c);break}
+        }
+      }
+      if(this.selectedCells.length===w.length) this.autoCheck();
+    }
+    this.state.items[id]--;this.saveState();
+    this.showMsg('使用 '+this.ITEM_DEFS[id].icon+' '+this.ITEM_DEFS[id].name+'!','#f0b830');
+    this.updateUI();
+    return true;
+  }
+  buyItem(id){
+    let def=this.ITEM_DEFS[id];
+    if(this.state.memoryPoints<def.mpCost) return false;
+    this.state.memoryPoints-=def.mpCost;
+    this.state.items[id]=(this.state.items[id]||0)+1;
+    this.saveState();
+    this.showMsg('兑换 '+def.icon+' '+def.name+'! (-'+def.mpCost+'MP)','#f0b830');
+    this.updateUI();
+    return true;
+  }
+  dailyCheckIn(){
+    let today=new Date().toLocaleDateString();
+    if(this.state.dailyChecked===today) return false;
+    this.state.dailyChecked=today;
+    let pool=['hint','shuffle'];
+    let gift=pool[Math.floor(Math.random()*pool.length)];
+    this.state.items[gift]=(this.state.items[gift]||0)+1;
+    this.saveState();
+    this.showMsg('签到奖励! '+this.ITEM_DEFS[gift].icon+' x1','#f0b830');
+    this.updateUI();
+    return true;
+  }
+  checkAndAwardItems(){
+    // 10连击奖励
+    if(this.combo===10&&this.state.comboRewardCount<5){
+      this.state.comboRewardCount++;
+      let pool=['hint','shuffle','freeze'];
+      let gift=pool[Math.floor(Math.random()*pool.length)];
+      this.state.items[gift]=(this.state.items[gift]||0)+1;
+      this.showMsg('10连击奖励! '+this.ITEM_DEFS[gift].icon+' x1','#f0b830');
+    }
+    // 首次三星奖励
+    if(this.levelStars===3&&!this.state.level3StarAward[this.level]){
+      this.state.level3StarAward[this.level]=true;
+      let gift=Math.random()<0.5?'double':'freeze';
+      this.state.items[gift]=(this.state.items[gift]||0)+1;
+      this.showMsg('首次三星! '+this.ITEM_DEFS[gift].icon+' x1','#f0b830');
+    }
+    this.saveState();
+  }
+  // 获取可用单词 (已解锁词包中的单词)
+  getUnlockedWords(){
+    let words=[];
+    for(let p of this.WORD_PACKS){
+      if(this.state.unlockedPacks[p.id]) words.push(...p.words.split(','));
+    }
+    return words;
+  }
+  // 获取某个词包的掌握进度
+  getPackProgress(packId){
+    let p=this.WORD_PACKS.find(x=>x.id===packId);
+    if(!p) return {total:0,mastered:0,partial:0};
+    let words=p.words.split(','), mastered=0, partial=0;
+    for(let w of words){
+      let lv=this.getWordMastery(w);
+      if(lv>=20) mastered++;
+      else if(lv>=1) partial++;
+    }
+    return {total:words.length,mastered,partial};
+  }
+  // 玩家点击解锁词包
+  unlockPack(packId){
+    let p=this.WORD_PACKS.find(x=>x.id===packId);
+    if(!p||this.state.unlockedPacks[packId]) return false;
+    // 检查前置
+    if(p.parent&&!this.state.unlockedPacks[p.parent]) return false;
+    // 检查点数
+    if(this.state.memoryPoints<p.cost) return false;
+    this.state.memoryPoints-=p.cost;
+    this.state.unlockedPacks[packId]=true;
+    this.saveState();
+    this.popUnlock(p);
+    // 刷新图鉴
+    if(!document.getElementById('collectionOverlay').classList.contains('hidden')) this.showCollection();
+    return true;
+  }
+  getPackUnlockCost(packId){
+    let p=this.WORD_PACKS.find(x=>x.id===packId);
+    if(!p) return 999;
+    if(this.state.unlockedPacks[packId]) return 0;
+    if(p.parent&&!this.state.unlockedPacks[p.parent]) return -1; // 前置未解锁
+    return p.cost;
+  }
+  popUnlock(p){
+    let pop=document.getElementById('unlockPopup');
+    let cn=WORD_CN[p.words.split(',')[0]]||'';
+    pop.innerHTML='<div style="font-size:14px;font-weight:bold;color:#f0b830">词包解锁!</div><div style="font-size:12px;color:#503737">'+p.name+' - '+p.desc+'</div>';
+    pop.style.opacity='1';
+    setTimeout(()=>{pop.style.opacity='0'},2500);
+  }
+  _initAchievements(){
+    this.ACHIEVEMENTS = [
+      {id:'first_clear',name:'初学者',desc:'完成第一关',icon:'[Lv1]',check:()=>this.level>=2},
+      {id:'words10',name:'拼字新手',desc:'累计拼出10个单词',icon:'[10W]',check:()=>this.state.totalWords>=10},
+      {id:'combo5',name:'连击达人',desc:'达成5连击',icon:'[x5]',check:()=>this.state.best_combo>=5},
+      {id:'star3',name:'完美主义',desc:'三星通关一次',icon:'[3*]',check:()=>(this.state.totalPerfect||0)>=1},
+      {id:'golden1',name:'金手指',desc:'命中金字母一次',icon:'[Au]',check:()=>(this.state.totalGoldens||0)>=1},
+      {id:'fever1',name:'狂热爱好者',desc:'触发Fever模式',icon:'[FE]',check:()=>this.state.achieve.fever1},
+      {id:'words100',name:'百词斩',desc:'累计拼出100个单词',icon:'[100]',check:()=>this.state.totalWords>=100},
+      {id:'combo10',name:'连击大师',desc:'达成10连击',icon:'[x10]',check:()=>this.state.best_combo>=10},
+      {id:'star9',name:'完美主义+',desc:'累计3次三星通关',icon:'[9*]',check:()=>(this.state.totalPerfect||0)>=3},
+      {id:'level5',name:'词汇专家',desc:'到达第5关',icon:'[Lv5]',check:()=>this.state.highest_level>=5},
+      {id:'score200',name:'登峰造极',desc:'单局得分超过200',icon:'[200]',check:()=>this.state.high.timed>=200||this.state.high.practice>=200||this.state.high.endless>=200},
+      {id:'golden10',name:'幸运之星',desc:'命中10次金字母',icon:'[10A]',check:()=>(this.state.totalGoldens||0)>=10},
+      {id:'words500',name:'千词斩',desc:'累计拼出500个单词',icon:'[500]',check:()=>this.state.totalWords>=500},
+      {id:'endless10',name:'无尽挑战者',desc:'无尽模式到达第10关',icon:'[E10]',check:()=>this.state.highest_level>=10&&this.state.high.endless>0},
+      {id:'all_achieve',name:'大满贯',desc:'解锁所有成就',icon:'[ALL]',check:()=>this.ACHIEVEMENTS.filter(a=>a.id!=='all_achieve').every(a=>this.state.achieve[a.id])},
+    ];
+    // 初始化 unlock 状态
+    if(!this.state.achieve._init){this.state.achieve={};this.state.achieve._init=true}
+  }
+  checkAchievements(){
+    let newly=[];
+    for(let a of this.ACHIEVEMENTS){
+      if(!this.state.achieve[a.id] && a.check()){
+        this.state.achieve[a.id]=true;newly.push(a);
+        if(a.id==='fever1') this.state.achieve.fever1=true;
+      }
+    }
+    if(newly.length){this.saveState();newly.forEach(a=>this.popAchieve(a))}
+    return newly;
+  }
+  popAchieve(a){
+    let pop=document.getElementById('achievePopup');
+    pop.textContent=a.icon+' '+a.name+' 解锁! '+a.desc;
+    pop.style.opacity='1';
+    setTimeout(()=>{pop.style.opacity='0'},2500);
+  }
+  saveState() {
+    try { localStorage.setItem('wm_state', JSON.stringify(this.state)); } catch(e) {}
+  }
+
+  // ====== 用户管理 ======
+  showProfileScreen(){
+    document.getElementById('profileOverlay').classList.remove('hidden');
+    document.getElementById('menuOverlay').classList.add('hidden');
+    this._refreshProfileList();
+  }
+  _refreshProfileList(){
+    let list=document.getElementById('profileList');
+    let names=Object.keys(this.state.players);
+    list.innerHTML=names.length===0?'<p style="color:#c8b8b8;font-size:13px">还没有档案, 创建你的第一个!</p>':
+      names.map(n=>{
+        let p=this.state.players[n];
+        return '<div onclick="game.selectProfile(\''+n+'\')" style="padding:8px 12px;margin:4px 0;background:#fff;border:2px solid #e8d5d5;border-radius:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-size:14px;font-weight:bold;color:#503737">'+n+'</span>'+
+          '<span style="font-size:10px;color:#c8b8b8">总词:'+(p.totalWords||0)+' MP:'+(p.memoryPoints||0)+' 包:'+Object.keys(p.unlockedPacks||{}).length+'</span>'+
+          '</div>';
+      }).join('');
+    document.getElementById('profileMsg').textContent='';
+  }
+  createProfile(){
+    try{
+    let name=document.getElementById('newProfileName').value.trim();
+    if(!name){document.getElementById('profileMsg').textContent='请输入名字';return}
+    if(this.state.players[name]){document.getElementById('profileMsg').textContent='该名字已存在';return}
+    if(name.length>8){document.getElementById('profileMsg').textContent='名字最多8个字';return}
+    this.state.players[name]={high:{timed:0,practice:0,endless:0},games:0,total_score:0,best_combo:0,highest_level:0,achieve:{},totalWords:0,totalPerfect:0,totalGoldens:0,wordMastery:{},memoryPoints:0,unlockedPacks:{},items:{hint:0,shuffle:0,freeze:0,double:0,lightning:0},level3StarAward:{},comboRewardCount:0};
+    this.saveState();
+    document.getElementById('newProfileName').value='';
+    this._refreshProfileList();
+    this.selectProfile(name);
+    }catch(e){document.getElementById('profileMsg').textContent='错误: '+e.message}
+  }
+  selectProfile(name){
+    this.currentPlayer=name;
+    this._loadPlayer(name);
+    this.initItems();
+    this.saveState();
+    document.getElementById('profileOverlay').classList.add('hidden');
+    document.getElementById('playerTag').textContent=name+' ';
+    this.showMenu();
+  }
+  switchProfile(){
+    this.saveState();
+    this.showProfileScreen();
+  }
+
+  resetAll() {
+    this.phase = 'menu';
+    this.mode = 'timed';
+    this.level = 1; this.score = 0; this.combo = 0; this.maxCombo = 0;
+    this.gameTimer = 180; this.memorizeTimer = 5;
+    this.targetWords = []; this.wordRemaining = {}; this.usedWords = new Set();
+    this.allWordsSeen = []; this.matrix = []; this.selectedCells = [];
+    this.message = ''; this.messageTimer = 0;
+    this.flashCells = []; this.flashTimer = 0;
+    this.errorCell = null; this.errorTimer = 0;
+    this.revealWord = null; this.revealTimer = 0;
+    this.wrongTotal = 0; this.perfectWords = 0;
+    this.feverActive = false; this.feverTimer = 0;
+    this.goldenCell = null; this.goldenTimer = 0;
+    this.dropCells = {}; this.screenShake = 0;
+    this.levelStars = 0; this.diffBonus = 0;
+    this.hintsLeft = 0;
+    this.showMenu();
+  }
+
+  getGridConfig() {
+    let lv = this.level, r, cs;
+    if(lv<=2){r=5;cs=90}else if(lv<=4){r=6;cs=75}else if(lv<=7){r=7;cs=65}else{r=8;cs=58}
+    // Scale for mobile
+    let maxW = Math.min(window.innerWidth - 24, 400);
+    let needW = r*cs + (r-1)*6;
+    if(needW > maxW){ cs = Math.floor((maxW - (r-1)*6) / r); }
+    let aw = r*cs + (r-1)*6, ah = r*cs + (r-1)*6;
+    return {rows:r, cols:r, cellSize:cs, areaW:aw, areaH:ah, gridX:0, gridY:0};
+  }
+
+  pickWords() {
+    this.initWordPacks();
+    let lv = this.level, count;
+    if(lv<=2) count=1; else if(lv<=4) count=2; else if(lv<=6) count=3;
+    else if(lv<=9) count=4; else count=Math.min(5,lv-4);
+    // 只用已解锁词库
+    let pool=this.getUnlockedWords();
+    if(pool.length===0) pool=[...WORD_POOL.A1]; // 兜底
+    let avail = [...new Set(pool)].filter(w => !this.usedWords.has(w));
+    if(avail.length < count) { avail = [...new Set(pool)]; this.usedWords.clear(); }
+    return avail.sort(()=>Math.random()-.5).slice(0, Math.min(count, avail.length));
+  }
+
+  startLevel() {
+    this._recorded = false;
+    this.g = this.getGridConfig();
+    this.targetWords = this.pickWords();
+    this.targetWords.forEach(w => this.usedWords.add(w));
+    this.allWordsSeen.push(...this.targetWords);
+    let n = this.level<=3?3:(this.level<=7?4:5);
+    n = Math.max(2, Math.min(7, n + this.diffBonus));
+    this.wordRemaining = {};
+    this.targetWords.forEach(w => this.wordRemaining[w] = Math.floor(Math.random()*3)+n-1);
+    this.selectedCells = [];
+    this.buildMatrix();
+    this.message = ''; this.messageTimer = 0;
+    this.flashCells = []; this.flashTimer = 0;
+    this.errorCell = null; this.errorTimer = 0;
+    this.revealWord = null; this.revealTimer = 0;
+    this.wrongTotal = 0; this.perfectWords = 0;
+    this.feverActive = false; this.feverTimer = 0;
+    this.goldenCell = null; this.goldenTimer = 0;
+    this.dropCells = {}; this.screenShake = 0;
+    this.hintsLeft = 1;
+    this.memorizeTimer = this.targetWords.length * 5;
+    this.initItems();
+    this.phase = 'memorize';
+    this.updateUI();
+  }
+
+  buildMatrix() {
+    let g = this.g, letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    this.matrix = [];
+    for(let r=0;r<g.rows;r++){this.matrix[r]=[];for(let c=0;c<g.cols;c++)this.matrix[r][c]=letters[Math.floor(Math.random()*26)]}
+    this.ensureAllFormable();
+  }
+
+  canFormWord(word) {
+    let all='';
+    for(let r of this.matrix) all+=r.join('');
+    let mc={}; for(let ch of all) mc[ch]=(mc[ch]||0)+1;
+    let wc={}; for(let ch of word.toUpperCase()) wc[ch]=(wc[ch]||0)+1;
+    for(let ch in wc) if((mc[ch]||0)<wc[ch]) return false;
+    return true;
+  }
+
+  ensureAllFormable() {
+    let active = this.targetWords.filter(w=>this.wordRemaining[w]>0);
+    if(!active.length) return;
+    for(let iter=0;iter<20;iter++){
+      let ok=true;
+      for(let w of active){
+        if(!this.canFormWord(w)){ok=false;this.forcePlace(w)}
+      }
+      if(ok) return;
+    }
+  }
+
+  forcePlace(word) {
+    let g=this.g, w=word.toUpperCase(), all=[];
+    for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++)all.push([r,c]);
+    all.sort(()=>Math.random()-.5);
+    for(let i=0;i<w.length;i++){let [r,c]=all[i];this.matrix[r][c]=w[i]}
+  }
+
+  refillMatrix(positions) {
+    let g=this.g, letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let posSet=new Set(positions.map(p=>p[0]+','+p[1]));
+    let cols=new Set(positions.map(p=>p[1]));
+    for(let col of cols){
+      let surviving=[];
+      for(let row=0;row<g.rows;row++) if(!posSet.has(row+','+col)) surviving.push(this.matrix[row][col]);
+      let newCount=g.rows-surviving.length;
+      let newLetters=[];
+      for(let i=0;i<newCount;i++) newLetters.push(letters[Math.floor(Math.random()*26)]);
+      let colLetters=[...newLetters,...surviving];
+      for(let row=0;row<g.rows;row++){
+        if(this.matrix[row][col]!==colLetters[row]){
+          this.matrix[row][col]=colLetters[row];
+          this.dropCells[row+','+col]=1;
+        }
+      }
+    }
+    this.ensureAllFormable();
+  }
+
+  cellAt(ex, ey) {
+    let g=this.g, cx=this.canvas.width/2-g.areaW/2, cy=this.canvas.height/2-g.areaH/2;
+    for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++){
+      let x=cx+c*(g.cellSize+6), y=cy+r*(g.cellSize+6);
+      if(ex>=x&&ex<=x+g.cellSize&&ey>=y&&ey<=y+g.cellSize) return [r,c];
+    }
+    return null;
+  }
+
+  handleClick(r, c) {
+    if(this.phase!=='play'||this.flashTimer>0) return;
+    let cell=[r,c], idx=this.selectedCells.findIndex(p=>p[0]===r&&p[1]===c);
+    if(idx>=0){this.selectedCells.splice(idx,1);this.errorCell=null;this.errorTimer=0}
+    else{
+      this.selectedCells.push(cell);
+      this.beep(600,0.08);
+      let sel=this.selectedCells.map(p=>this.matrix[p[0]][p[1]]).join('');
+      let active=this.targetWords.filter(w=>this.wordRemaining[w]>0);
+      if(!active.some(w=>w.toUpperCase().startsWith(sel))){
+        this.errorCell=cell;this.errorTimer=0.35;this.wrongTotal++;
+        if(this.combo>=2) this.showMsg('连击中断!','#f06e6e');
+        this.combo=0;this.feverActive=false;this.feverTimer=0;
+        this.beep(200,0.15);
+      }
+    }
+    if(this.selectedCells.length) this.autoCheck();
+    this.updateUI();
+  }
+
+  autoCheck() {
+    let sel=this.selectedCells.map(p=>this.matrix[p[0]][p[1]]).join('');
+    let active=this.targetWords.filter(w=>this.wordRemaining[w]>0);
+    let matched=active.find(w=>w.toUpperCase()===sel);
+    if(!matched) return;
+    this.combo++;
+    if(this.combo>this.maxCombo) this.maxCombo=this.combo;
+    let mult;
+    if(this.combo>=10) mult=5;else if(this.combo>=7) mult=3.5;else if(this.combo>=5) mult=2.5;
+    else if(this.combo>=3) mult=1.8;else if(this.combo>=2) mult=1.3;else mult=1;
+    let lenBonus=matched.length*2, base=10+lenBonus, perfectBonus=5;
+    let feverMult=this.feverActive?2:1;
+    let doubleMult=this._doubleNext?2:1;if(this._doubleNext)this._doubleNext=false;
+    let pts=Math.floor((base+perfectBonus)*mult*feverMult*doubleMult);
+    this.score+=pts;this.perfectWords++;
+    this.state.totalWords=(this.state.totalWords||0)+1;
+    // 单词掌握度升级
+    let mpGain=this.levelUpWord(matched);
+    if(mpGain>0) this.showMsg('记忆点数 +'+mpGain+' ('+matched+' Lv'+this.getWordMastery(matched)+')','#f0b830');
+    this.flashCells=[...this.selectedCells];this.flashTimer=0.5;
+    if(this.goldenCell&&this.selectedCells.some(p=>p[0]===this.goldenCell[0]&&p[1]===this.goldenCell[1])){
+      this.score+=15;this.state.totalGoldens=(this.state.totalGoldens||0)+1;
+      this.goldenCell=null;this.goldenTimer=0;this.showMsg('* GOLDEN! +15 *','#e8963c');
+    }
+    this.selectedCells=[];this.errorCell=null;this.errorTimer=0;
+    this.wordRemaining[matched]--;
+    this.beep(800,0.12);
+    if(this.combo===5){this.feverActive=true;this.feverTimer=12;this.state.achieve.fever1=true;this.showMsg('>> FEVER TIME! 2x! <<','#e8963c')}
+    if(this.combo>=7) this.screenShake=0.2;
+    let cn=WORD_CN[matched]||'', r=this.wordRemaining[matched];
+    let tag=this.feverActive?' [x2]':'', ctag=this.combo>=2?' '+this.combo+'x!':'';
+    this.showMsg('+'+pts+' '+matched+'('+cn+') x'+r+tag+ctag,'#78c878');
+  }
+
+  clear(){this.selectedCells=[];this.errorCell=null;this.errorTimer=0;this.updateUI()}
+
+  showMsg(t,c){this.message=t;this.msgColor=c;this.messageTimer=2}
+
+  hintReveal(){
+    if(this.phase!=='play'||this.hintsLeft<=0) return;
+    let active=this.targetWords.filter(w=>this.wordRemaining[w]>0);
+    if(active.length){this.revealWord=active[Math.floor(Math.random()*active.length)];this.revealTimer=2;this.hintsLeft--;this.updateUI()}
+  }
+
+  hintShuffle(){
+    if(this.phase!=='play') return;
+    let g=this.g, all=[];
+    for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++)all.push(this.matrix[r][c]);
+    all.sort(()=>Math.random()-.5);let i=0;
+    for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++)this.matrix[r][c]=all[i++];
+    this.ensureAllFormable();this.selectedCells=[];this.errorCell=null;
+    this.showMsg('矩阵已重排!','#e8963c');this.updateUI();
+  }
+
+  onLevelDone() {
+    if(this.wrongTotal===0&&this.maxCombo>=5) this.levelStars=3;
+    else if(this.wrongTotal<=3&&this.maxCombo>=2) this.levelStars=2;
+    else this.levelStars=1;
+    if(this.wrongTotal<=2&&this.maxCombo>=5) this.diffBonus=Math.min(3,this.diffBonus+1);
+    else if(this.wrongTotal>=8||this.maxCombo<=1) this.diffBonus=Math.max(-1,this.diffBonus-1);
+    this.phase='level_done';this.transitionTimer=2;
+    this.selectedCells=[];this.combo=0;this.feverActive=false;this.feverTimer=0;
+    this.checkAndAwardItems();
+    this.beep(1000,0.3);setTimeout(()=>this.beep(1200,0.3),150);
+    this.updateUI();
+  }
+
+  levelCleared(){return Object.values(this.wordRemaining).every(n=>n<=0)}
+
+  showMenu(){
+    if(!this.currentPlayer){this.showProfileScreen();return}
+    this.phase='menu';
+    document.getElementById('menuOverlay').classList.remove('hidden');
+    document.getElementById('pauseOverlay').classList.add('hidden');
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    document.getElementById('reviewOverlay').classList.add('hidden');
+    let menuBtns=document.getElementById('menuBtns');
+    let modes=[['timed','[限时] 3分钟争高分'],['practice','[练习] 无时间压力'],['endless','[无尽] 难度无限递进']];
+    menuBtns.innerHTML='<p style="font-size:12px;color:#c8b8b8;margin-bottom:8px">玩家: <b style="color:#503737">'+this.currentPlayer+'</b> <span style="cursor:pointer;color:#ffb48c" onclick="game.switchProfile()">[切换]</span></p>'+
+      modes.map(([id,label])=>
+      `<button onclick="game.selectMode('${id}')">${label}<br><small>最高分: ${(this.state.high[id]||0)}</small></button>`
+    ).join('');
+    document.getElementById('statsLine').textContent=
+      '游戏'+this.state.games+'次 | 总得分'+this.state.total_score+' | 最佳连击'+this.state.best_combo;
+  }
+
+  selectMode(mode){
+    this.mode=mode;
+    if(mode==='endless'||mode==='practice') this.gameTimer=9999;
+    else this.gameTimer=180;
+    document.getElementById('menuOverlay').classList.add('hidden');
+    this.level=1;this.score=0;this.combo=0;this.maxCombo=0;
+    this.usedWords=new Set();this.allWordsSeen=[];
+    this.startLevel();
+  }
+
+  startGame(){this.restart()}
+
+  backToMenu(){
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    document.getElementById('reviewOverlay').classList.add('hidden');
+    document.getElementById('pauseOverlay').classList.add('hidden');
+    this.saveState();
+    this.resetAll();
+    this.showProfileScreen();
+  }
+
+  closeReview(){
+    document.getElementById('reviewOverlay').classList.add('hidden');
+    this.phase='game_over';
+  }
+  showAchievements(){
+    document.getElementById('achieveOverlay').classList.remove('hidden');
+    this._initAchievements();
+    let html='';
+    for(let a of this.ACHIEVEMENTS){
+      let unlocked=!!this.state.achieve[a.id];
+      html+='<p style="font-size:12px;color:'+(unlocked?'#78c878':'#c8b8b8')+';margin:3px 0">'+
+        (unlocked?'[x] ':'[ ] ')+a.icon+' '+a.name+' - '+a.desc+'</p>';
+    }
+    document.getElementById('achieveContent').innerHTML=html;
+  }
+  closeAchieve(){document.getElementById('achieveOverlay').classList.add('hidden')}
+  showLeaderboard(mode){
+    this._lbMode=mode||'timed';
+    document.getElementById('leaderboardOverlay').classList.remove('hidden');
+    this._drawLeaderboard();
+  }
+  _drawLeaderboard(){
+    let m=this._lbMode;
+    document.getElementById('leaderboardTabs').innerHTML=['timed','practice','endless'].map(x=>
+      `<button class="${x===m?'':'secondary'}" onclick="game.showLeaderboard('${x}')" style="font-size:12px;padding:4px 10px;margin:2px">${x==='timed'?'[限时]':x==='practice'?'[练习]':'[无尽]'}</button>`
+    ).join('');
+    let lb=this.state.leaderboard[m]||[];
+    // 同时展示所有玩家的学习进度
+    let allPlayers=this._getAllPlayers();
+    let html='';
+    if(lb.length>0){
+      html+='<p style="font-size:11px;color:#c8b8b8;margin:6px 0 2px">-- 排行榜 --</p>';
+      html+=lb.slice(0,10).map((e,i)=>`<p style="font-size:12px;margin:3px 0;color:${i<3?'#e8963c':'#503737'}">${i+1}. <b>${e.name||'玩家'}</b> 得分${e.score} 第${e.level}关 x${e.combo}连击 ${e.date}</p>`).join('');
+    }else{html+='<p style="color:#c8b8b8">暂无排行记录</p>'}
+    if(allPlayers.length>0){
+      html+='<p style="font-size:11px;color:#c8b8b8;margin:10px 0 2px">-- 全体玩家学习进度 --</p>';
+      allPlayers.sort((a,b)=>b.memoryPoints-a.memoryPoints);
+      allPlayers.forEach(p=>{
+        html+='<p style="font-size:11px;margin:2px 0;color:#503737"><b>'+p.name+'</b> MP:'+p.memoryPoints+' 词:'+p.totalWords+' 包:'+p.packs+' 最高Lv'+p.highest_level+'</p>';
+      });
+    }
+    document.getElementById('leaderboardContent').innerHTML=html
+  }
+  closeLeaderboard(){document.getElementById('leaderboardOverlay').classList.add('hidden')}
+  showCollection(){
+    this.initWordPacks();
+    document.getElementById('collectionOverlay').classList.remove('hidden');
+    let html='<div style="font-size:12px;color:#503737;margin-bottom:8px">'+
+      '记忆点数: <b style="color:#f0b830;font-size:18px">'+this.state.memoryPoints+'</b> | '+
+      '已解锁 '+Object.keys(this.state.unlockedPacks).length+'/'+this.WORD_PACKS.length+' 词包</div>';
+    // 分组显示: 已解锁 | 可解锁(有足够点数) | 锁定(点数不足/前置未解锁)
+    let unlocked=[], available=[], locked=[];
+    for(let p of this.WORD_PACKS){
+      let cost=this.getPackUnlockCost(p.id);
+      if(cost===0) unlocked.push(p);
+      else if(cost>0&&cost<=this.state.memoryPoints) available.push(p);
+      else locked.push(p);
+    }
+    if(unlocked.length){
+      html+='<p style="font-size:11px;color:#78c878;font-weight:bold;margin:8px 0 2px">[已解锁]</p>';
+      for(let p of unlocked){
+        let prog=this.getPackProgress(p.id);
+        let stars='';
+        for(let i=0;i<5;i++) stars+=i<Math.floor(prog.mastered/prog.total*5)?'*':'-';
+        html+='<p style="font-size:11px;color:#503737;margin:2px 0">'+
+          '[v] '+p.name+' ('+p.words.split(',').length+'词) ['+prog.mastered+'/'+prog.total+'已掌握]</p>';
+      }
+    }
+    if(available.length){
+      html+='<p style="font-size:11px;color:#f0b830;font-weight:bold;margin:8px 0 2px">[可解锁]</p>';
+      for(let p of available){
+        let cost=this.getPackUnlockCost(p.id);
+        let parent=p.parent?(this.WORD_PACKS.find(x=>x.id===p.parent)||{}).name||'':'';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin:2px 0;padding:4px 8px;background:#fff8e8;border-radius:8px">'+
+          '<span style="font-size:11px;color:#503737">'+p.name+' ('+p.words.split(',').length+'词) '+(parent?'<span style="color:#c8b8b8;font-size:9px">需要:'+parent+'</span>':'')+'</span>'+
+          '<button onclick="game.unlockPack(\''+p.id+'\')" style="font-size:10px;padding:3px 10px;background:#f0b830;color:#fff;border:none;border-radius:10px;cursor:pointer">解锁 '+cost+'点</button>'+
+          '</div>';
+      }
+    }
+    if(locked.length){
+      html+='<p style="font-size:11px;color:#c8b8b8;font-weight:bold;margin:8px 0 2px">[锁定]</p>';
+      for(let p of locked){
+        let cost=this.getPackUnlockCost(p.id);
+        let reason=cost===-1?'需先解锁前置词包':cost+'点 (你有'+this.state.memoryPoints+'点)';
+        html+='<p style="font-size:11px;color:#c8b8b8;margin:2px 0">[锁] '+p.name+' ('+p.words.split(',').length+'词) - '+reason+'</p>';
+      }
+    }
+    document.getElementById('collectionContent').innerHTML=html;
+  }
+  closeCollection(){document.getElementById('collectionOverlay').classList.add('hidden')}
+  // 道具商店
+  showShop(){
+    this.initItems();
+    document.getElementById('itemShopOverlay').classList.remove('hidden');
+    let html='<p style="font-size:12px;color:#503737">当前 MP: <b style="color:#f0b830">'+this.state.memoryPoints+'</b></p>';
+    for(let id in this.ITEM_DEFS){
+      let d=this.ITEM_DEFS[id];
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;margin:3px 0;background:#fff;border-radius:10px">'+
+        '<span style="font-size:13px">'+d.icon+' '+d.name+' <span style="font-size:10px;color:#c8b8b8">'+d.desc+'</span></span>'+
+        '<span style="font-size:12px;color:#503737">拥有:'+(this.state.items[id]||0)+'</span>'+
+        '<button onclick="game.buyItem(\''+id+'\')" style="font-size:11px;padding:3px 10px;background:#ffb48c;color:#fff;border:none;border-radius:10px;cursor:pointer">'+d.mpCost+'MP</button>'+
+        '</div>';
+    }
+    document.getElementById('shopContent').innerHTML=html;
+  }
+  closeShop(){document.getElementById('itemShopOverlay').classList.add('hidden')}
+  _drawItemBar(){
+    let bar=document.getElementById('itemRow');
+    if(this.phase!=='play'){bar.innerHTML='';return}
+    let html='';
+    for(let id in this.ITEM_DEFS){
+      let d=this.ITEM_DEFS[id],count=this.state.items[id]||0;
+      html+='<button onclick="game.useItem(\''+id+'\')" class="'+(count>0?'':'empty')+'">'+d.icon+' x'+count+'</button>';
+    }
+    html+='<button onclick="game.showShop()" class="shop">+</button>';
+    bar.innerHTML=html;
+  }
+
+  showReview(){
+    this.phase='review';
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    document.getElementById('reviewOverlay').classList.remove('hidden');
+    let seen=[...new Set(this.allWordsSeen)];
+    document.getElementById('reviewContent').innerHTML=seen.map(w=>{
+      let cn=WORD_CN[w]||'',done=this.wordRemaining[w]!==undefined&&this.wordRemaining[w]<=0;
+      return `<p style="font-size:12px;color:${done?'#78c878':'#968888'};margin:3px 0">${w} ${cn} ${done?'OK':'--'}</p>`;
+    }).join('');
+  }
+
+  recordGameOver(name){
+    this.state.games++;this.state.total_score+=this.score;
+    let wordsDone=Object.values(this.wordRemaining).filter(n=>n<=0).length;
+    this.state.words_found=(this.state.words_found||0)+wordsDone;
+    if(this.maxCombo>this.state.best_combo) this.state.best_combo=this.maxCombo;
+    if(this.level>this.state.highest_level) this.state.highest_level=this.level;
+    if(this.score>(this.state.high[this.mode]||0)){
+      this.state.high[this.mode]=this.score;this.newHigh=true;
+    }else this.newHigh=false;
+    if(this.levelStars===3) this.state.totalPerfect=(this.state.totalPerfect||0)+1;
+    let lb=this.state.leaderboard[this.mode];
+    let entry={name:name||this.currentPlayer||'玩家',score:this.score,level:this.level,combo:this.maxCombo,date:new Date().toLocaleDateString()};
+    lb.push(entry);
+    lb.sort((a,b)=>b.score-a.score);
+    if(lb.length>20) lb.length=20;
+    this.saveState();
+    this.checkAchievements();
+  }
+  saveScore(){
+    if(this._saved) return;
+    let name=document.getElementById('playerName').value.trim()||'玩家';
+    this.recordGameOver(name);
+    this._saved=true;
+    document.getElementById('playerName').style.display='none';
+    document.getElementById('gameOverContent').innerHTML+='<p style="color:#78c878;font-size:13px;font-weight:bold">已保存, '+name+'!</p>';
+  }
+  restart(){
+    // 未保存则自动记录
+    if(!this._saved) this.recordGameOver('未署名');
+    this.level=1;this.score=0;this.combo=0;this.maxCombo=0;
+    this.usedWords=new Set();this.allWordsSeen=[];
+    this.gameTimer=this.mode==='timed'?180:9999;
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    document.getElementById('playerName').style.display='';
+    this._saved=false;this._recorded=false;
+    this.startLevel();
+  }
+
+  // Audio
+  beep(freq,dur){
+    try{
+      let ctx=new(window.AudioContext||window.webkitAudioContext)();
+      let o=ctx.createOscillator(),g=ctx.createGain();
+      o.type='sine';o.frequency.value=freq;g.gain.value=0.15;
+      o.connect(g);g.connect(ctx.destination);
+      o.start();g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
+      o.stop(ctx.currentTime+dur);
+    }catch(e){}
+  }
+
+  // Update
+  update(dt){
+    if(this.messageTimer>0) this.messageTimer-=dt;
+    if(this.errorTimer>0) this.errorTimer-=dt;
+    if(this.revealTimer>0) this.revealTimer-=dt;
+    if(this.screenShake>0) this.screenShake-=dt;
+    if(this.feverActive){this.feverTimer-=dt;if(this.feverTimer<=0) this.feverActive=false}
+    if(this.phase==='play'&&!this.goldenCell&&this.flashTimer<=0){
+      if(Math.random()<0.0012){
+        let g=this.g;
+        this.goldenCell=[Math.floor(Math.random()*g.rows),Math.floor(Math.random()*g.cols)];
+        this.goldenTimer=10;this.showMsg('* Golden Letter! +15 *','#e8963c');
+      }
+    }
+    if(this.goldenTimer>0){this.goldenTimer-=dt;if(this.goldenTimer<=0) this.goldenCell=null}
+    for(let k in this.dropCells){this.dropCells[k]-=dt*4;if(this.dropCells[k]<=0) delete this.dropCells[k]}
+    if(this.flashTimer>0){this.flashTimer-=dt;if(this.flashTimer<=0){
+      this.refillMatrix(this.flashCells);this.flashCells=[];
+      if(this.selectedCells.length&&this.phase==='play') this.autoCheck();
+      if(this.levelCleared()) this.onLevelDone();
+    }}
+    if(this.phase==='memorize'){this.memorizeTimer-=dt;if(this.memorizeTimer<=0){this.memorizeTimer=0;this.phase='play';this.updateUI()}}
+    else if(this.phase==='play'&&this.mode!=='practice'){this.gameTimer-=dt;if(this.gameTimer<=0){this.gameTimer=0;this.phase='game_over';this.combo=0;this.showGameOver()}}
+    else if(this.phase==='level_done'){this.transitionTimer-=dt;if(this.transitionTimer<=0){this.level++;this.startLevel()}}
+  }
+
+  showGameOver(){
+    let ratings={3:'完美通关!',2:'非常出色!',1:'继续加油!'};
+    let wordsDone=Object.values(this.wordRemaining).filter(n=>n<=0).length;
+    let html=`<h2>=== 游戏结束 ===</h2>
+      <div class="big">得分: ${this.score}</div>
+      ${this.renderStars(this.levelStars)}
+      <p style="color:#78c878;font-weight:bold">${ratings[this.levelStars]}</p>
+      ${this.newHigh?'<p style="color:#e8963c;font-weight:bold">** 新纪录! **</p>':''}
+      <p>>> 到达第${this.level}关</p>
+      <p>>> 完成${wordsDone}个单词</p>
+      <p>>> 最大连击: ${this.maxCombo}</p>`;
+    document.getElementById('gameOverContent').innerHTML=html;
+    document.getElementById('gameOverOverlay').classList.remove('hidden');
+    this.updateUI();
+  }
+
+  // UI
+  updateUI(){
+    let lvl=document.getElementById('levelInfo'),scr=document.getElementById('scoreInfo');
+    let tim=document.getElementById('timerInfo'),sel=document.getElementById('selected');
+    let panel=document.getElementById('panelContent'),hints=document.getElementById('hints');
+    let clearBtn=document.getElementById('btnClear'),plTag=document.getElementById('playerTag');
+    plTag.textContent=this.currentPlayer?this.currentPlayer+' ':'';
+    lvl.textContent='第'+this.level+'关';
+    scr.textContent='得分:'+this.score+(this.feverActive?' <<FEVER>>':'')+(this.combo>=2?' x'+this.combo:'')+' | MP:'+this.state.memoryPoints;
+    let m=Math.floor(this.gameTimer/60),s=Math.floor(this.gameTimer%60);
+    tim.textContent=this.mode==='practice'?'(练习模式)':(m+':'+(s<10?'0':'')+s);
+    tim.style.color=this.mode==='practice'?'#78c878':(this.gameTimer<=15?'#eb5a5a':'#64b4e6');
+    if(this.phase==='memorize'){
+      let ms=Math.max(1,Math.ceil(this.memorizeTimer));
+      let parts=this.targetWords.map(w=>w+'('+(WORD_CN[w]||'')+') x'+this.wordRemaining[w]);
+      panel.innerHTML='<div class="mem-label">记忆时间! '+ms+'秒</div><div class="words">'+parts.join('  ')+'</div>';
+    }else if(this.phase==='level_done'){
+      let r={3:'完美通关!',2:'非常出色!',1:'继续加油!'};
+      panel.innerHTML='<div>'+this.renderStars(this.levelStars)+'</div><div style="font-size:13px;color:#78c878;font-weight:bold">'+r[this.levelStars]+'</div>';
+    }else{
+      let cnParts=this.targetWords.map(w=>{let cn=WORD_CN[w]||'';return this.wordRemaining[w]<=0?cn+'(OK)':cn});
+      let done=Object.values(this.wordRemaining).filter(n=>n<=0).length;
+      panel.innerHTML='<div class="play-label">??? 凭记忆拼出单词 ???</div><div class="cn-hint">'+cnParts.join(' | ')+'</div><div class="progress">已完成 '+done+'/'+this.targetWords.length+' 个单词</div>';
+    }
+    sel.textContent=this.selectedCells.length?'已选: '+this.selectedCells.map(p=>this.matrix[p[0]][p[1]]).join(''):'点击字母按顺序拼写...';
+    clearBtn.style.display=this.phase==='play'?'inline-block':'none';
+    hints.textContent=this.phase==='play'?'1-5道具 | R提示 S重排 P暂停 M菜单 Back撤销':'';
+    if(this.phase==='play'&&this.hintsLeft>0) hints.textContent=hints.textContent.replace('提示','提示('+this.hintsLeft+')');
+    this._drawItemBar();
+  }
+
+  drawGrid(){
+    let ctx=this.ctx, g=this.g, canvas=this.canvas;
+    let maxW=Math.min(window.innerWidth-24,400), maxH=Math.min(window.innerHeight*0.55,500);
+    let needW=g.areaW, needH=g.areaH;
+    let w=Math.min(needW,maxW), h=Math.min(needH,maxH);
+    canvas.width=w+4;canvas.height=h+4;
+    let cx=(canvas.width-needW)/2, cy=(canvas.height-needH)/2;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // shake
+    if(this.screenShake>0){cx+=Math.sin(this.screenShake*50)*3;cy+=Math.cos(this.screenShake*50)*3}
+    for(let r=0;r<g.rows;r++)for(let c=0;c<g.cols;c++){
+      let x=cx+c*(g.cellSize+6), y=cy+r*(g.cellSize+6), sz=g.cellSize;
+      let cell=[r,c], dropOff=this.dropCells[r+','+c]||0;
+      if(dropOff>0) y-=dropOff*sz*1.5;
+      // shadow
+      ctx.fillStyle='#e8dcd8';ctx.beginPath();ctx.roundRect(x+2,y+3,sz,sz,14);ctx.fill();
+      // bg
+      let bg='#fffcfc';
+      if(this.flashCells.some(p=>p[0]===r&&p[1]===c)&&this.flashTimer>0)
+        bg=Math.floor(this.flashTimer*10)%2===0?'#c8fad2':'#ffffb4';
+      else if(this.goldenCell&&this.goldenCell[0]===r&&this.goldenCell[1]===c&&this.goldenTimer>0)
+        bg=Math.floor(this.goldenTimer*6)%2===0?'#fff078':'#ffffc8';
+      else if(this.errorCell&&this.errorCell[0]===r&&this.errorCell[1]===c&&this.errorTimer>0) bg='#ffc8c8';
+      else if(this.selectedCells.some(p=>p[0]===r&&p[1]===c)) bg='#fff5b4';
+      ctx.fillStyle=bg;ctx.beginPath();ctx.roundRect(x,y,sz,sz,14);ctx.fill();
+      // border
+      ctx.strokeStyle='#ebd9d0';ctx.lineWidth=1;
+      ctx.beginPath();ctx.roundRect(x,y,sz,sz,14);ctx.stroke();
+      if(this.selectedCells.some(p=>p[0]===r&&p[1]===c)){ctx.strokeStyle='#ffb832';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x,y,sz,sz,14);ctx.stroke()}
+      else if(this.errorCell&&this.errorCell[0]===r&&this.errorCell[1]===c&&this.errorTimer>0){ctx.strokeStyle='#ff6464';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x,y,sz,sz,14);ctx.stroke()}
+      else if(this.goldenCell&&this.goldenCell[0]===r&&this.goldenCell[1]===c&&this.goldenTimer>0){ctx.strokeStyle='#e8963c';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x,y,sz,sz,14);ctx.stroke()}
+      // letter
+      ctx.fillStyle='#503737';ctx.font='bold '+(sz>=85?36:sz>=70?28:22)+'px sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(this.matrix[r][c],x+sz/2,y+sz/2);
+    }
+  }
+
+  // Events
+  setupEvents(){
+    this.canvas.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      let rect=this.canvas.getBoundingClientRect();
+      let ex=e.clientX-rect.left, ey=e.clientY-rect.top;
+      let cell=this.cellAt(ex,ey);
+      if(cell&&this.phase==='play') this.handleClick(cell[0],cell[1]);
+    });
+    document.addEventListener('keydown',e=>{
+      if(this.phase==='play'){
+        if(e.key==='Escape'||e.key==='c') this.clear();
+        else if(e.key==='Backspace'){if(this.selectedCells.length){this.selectedCells.pop();this.errorCell=null;this.errorTimer=0;if(this.selectedCells.length)this.autoCheck();this.updateUI()}}
+        else if(e.key==='p'){this.phase='paused';document.getElementById('pauseOverlay').classList.remove('hidden')}
+        else if(e.key==='r') this.hintReveal();
+        else if(e.key==='s') this.hintShuffle();
+        else if(e.key==='m'){this.backToMenu();this.updateUI()}
+        else if(e.key>='1'&&e.key<='5'){let ids=['hint','shuffle','freeze','double','lightning'];this.useItem(ids[parseInt(e.key)-1])}
+      }else if(this.phase==='paused'){
+        if(e.key==='p'){this.phase='play';document.getElementById('pauseOverlay').classList.add('hidden')}
+        else if(e.key==='m'){this.backToMenu();document.getElementById('pauseOverlay').classList.add('hidden')}
+      }else if(this.phase==='memorize'){
+        if(e.key==='m'){this.backToMenu();this.updateUI()}
+      }
+      if(this.phase==='game_over'||this.phase==='review'){
+        if(e.key===' ') this.restart();
+      }
+    });
+    window.addEventListener('resize',()=>{if(this.g)this.g=this.getGridConfig()});
+  }
+
+  loop(){
+    let last=performance.now();
+    let frame=()=>{
+      let now=performance.now(),dt=Math.min((now-last)/1000,0.1);
+      last=now;
+      if(this.phase!=='paused'&&this.phase!=='menu'&&this.phase!=='game_over'&&this.phase!=='review'){
+        this.update(dt);
+        if(this.phase!=='game_over'&&this.phase!=='review') this.drawGrid();
+        if(this.phase!=='level_done') this.updateUI();
+      }
+      if(this.phase==='game_over'||this.phase==='review'){/* keep overlay visible */}
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+}
+
+// roundRect polyfill
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+    if(typeof r==='number') r={tl:r,tr:r,br:r,bl:r};
+    this.beginPath();this.moveTo(x+r.tl,y);
+    this.lineTo(x+w-r.tr,y);this.quadraticCurveTo(x+w,y,x+w,y+r.tr);
+    this.lineTo(x+w,y+h-r.br);this.quadraticCurveTo(x+w,y+h,x+w-r.br,y+h);
+    this.lineTo(x+r.bl,y+h);this.quadraticCurveTo(x,y+h,x,y+h-r.bl);
+    this.lineTo(x,y+r.tl);this.quadraticCurveTo(x,y,x+r.tl,y);
+    this.closePath();
+  };
+}
+
+const game = new Game();
+</script>
+</body>
+</html>

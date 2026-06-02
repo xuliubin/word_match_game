@@ -720,6 +720,7 @@ class Game {
     this.memorizeTimer = this.targetWords.length * 5;
     this.initItems();
     this.phase = 'memorize';
+    this.startBGM();
     this.updateUI();
   }
 
@@ -1030,6 +1031,7 @@ class Game {
       html+='<button onclick="game.useItem(\''+id+'\')" class="'+(count>0?'':'empty')+'">'+d.icon+'<b style="font-size:10px;color:'+(count>0?'#f0b830':'#d8d0d0')+'">'+count+'</b></button>';
     }
     html+='<button onclick="game.showShop()" class="shop">+</button>';
+    html+='<button onclick="game.toggleBGM()" style="padding:2px 6px;border-radius:10px;font-size:10px;border:1px solid #e8d5d5;background:'+(this._bgmPlaying?'#fff8e8':'#f8f8f8')+';color:'+(this._bgmPlaying?'#f0b830':'#d8d0d0')+';cursor:pointer">'+(this._bgmPlaying?'♪':'~')+'</button>';
     bar.innerHTML=html;
   }
 
@@ -1116,6 +1118,35 @@ class Game {
   sfxFever(){for(let i=0;i<4;i++)setTimeout(()=>this.beep(800+i*200,0.08,'sine',0.10),i*80)} // Fever
   sfxGolden(){this.beep(1200,0.1,'sine',0.12);setTimeout(()=>this.beep(1500,0.1,'sine',0.12),60)} // 金字母
 
+  // 背景音乐 (Web Audio 合成)
+  startBGM(){
+    if(this._bgmPlaying) return;
+    this._bgmPlaying=true;
+    this._bgmNotes=[262,330,392,330,294,392,440,349,330,294,262,330]; // C大调简单旋律
+    this._bgmIdx=0;this._bgmVol=0.025;
+    this._playBGMNote();
+  }
+  _playBGMNote(){
+    if(!this._bgmPlaying) return;
+    let freq=this._bgmNotes[this._bgmIdx%this._bgmNotes.length];
+    // 主音+泛音和弦
+    this.beep(freq,1.2,'sine',this._bgmVol);
+    this.beep(freq*1.5,1.0,'sine',this._bgmVol*0.5);
+    this.beep(freq*2,0.8,'sine',this._bgmVol*0.3);
+    this._bgmIdx++;
+    this._bgmTimer=setTimeout(()=>this._playBGMNote(),900);
+  }
+  stopBGM(){
+    this._bgmPlaying=false;
+    if(this._bgmTimer) clearTimeout(this._bgmTimer);
+  }
+  toggleBGM(){
+    if(this._bgmPlaying) this.stopBGM();
+    else this.startBGM();
+    this.updateUI();
+    return this._bgmPlaying;
+  }
+
   // Update
   update(dt){
     if(this.messageTimer>0) this.messageTimer-=dt;
@@ -1138,7 +1169,7 @@ class Game {
       if(this.levelCleared()) this.onLevelDone();
     }}
     if(this.phase==='memorize'){this.memorizeTimer-=dt;if(this.memorizeTimer<=0){this.memorizeTimer=0;this.phase='play';this.updateUI()}}
-    else if(this.phase==='play'&&this.mode!=='practice'){this.gameTimer-=dt;if(this.gameTimer<=0){this.gameTimer=0;this.phase='game_over';this.combo=0;this.showGameOver()}}
+    else if(this.phase==='play'&&this.mode!=='practice'){this.gameTimer-=dt;if(this.gameTimer<=0){this.gameTimer=0;this.phase='game_over';this.combo=0;this.stopBGM();this.showGameOver()}}
     else if(this.phase==='level_done'){this.transitionTimer-=dt;if(this.transitionTimer<=0){this.level++;this.startLevel()}}
   }
 
@@ -1185,7 +1216,7 @@ class Game {
     }
     sel.textContent=this.selectedCells.length?'已选: '+this.selectedCells.map(p=>this.matrix[p[0]][p[1]]).join(''):'点击字母按顺序拼写...';
     clearBtn.style.display=this.phase==='play'?'inline-block':'none';
-    hints.textContent=this.phase==='play'?'1-5道具 | R提示 S重排 P暂停 M菜单 Back撤销':'';
+    hints.textContent=this.phase==='play'?'1-5道具 R提示 S重排 P暂停 M菜单 B音乐 Back撤销':'';
     if(this.phase==='play'&&this.hintsLeft>0) hints.textContent=hints.textContent.replace('提示','提示('+this.hintsLeft+')');
     this._drawItemBar();
   }
@@ -1245,6 +1276,7 @@ class Game {
         else if(e.key==='r') this.hintReveal();
         else if(e.key==='s') this.hintShuffle();
         else if(e.key==='m'){this.backToMenu();this.updateUI()}
+        else if(e.key==='b'){this.toggleBGM()}
         else if(e.key>='1'&&e.key<='5'){let ids=['hint','shuffle','freeze','double','lightning'];this.useItem(ids[parseInt(e.key)-1])}
       }else if(this.phase==='paused'){
         if(e.key==='p'){this.phase='play';document.getElementById('pauseOverlay').classList.add('hidden')}

@@ -81,7 +81,12 @@ canvas{display:block;touch-action:manipulation}
     <div id="selected"></div>
     <div id="itemRow"></div>
     <div id="ctrlRow">
+      <button id="btnUndo" onclick="game.undo()" style="background:#c8b8d0">撤销</button>
       <button id="btnClear" onclick="game.clear()">清除</button>
+      <button id="btnHint" onclick="game.hintReveal()" style="background:#f0c878">提示</button>
+      <button id="btnShuffle" onclick="game.hintShuffle()" style="background:#a0d8c8">重排</button>
+      <button id="btnPause" onclick="game.togglePause()">暂停</button>
+      <button id="btnEndGame" onclick="game.endGame()" style="background:#e8968c;display:none">结束</button>
     </div>
     <div id="hints"></div>
   </div>
@@ -115,7 +120,8 @@ canvas{display:block;touch-action:manipulation}
 
 <div id="pauseOverlay" class="overlay hidden"><div class="card">
   <h2>| |  暂停中...</h2>
-  <p>按 P 继续 | 按 M 回菜单</p>
+  <button onclick="game.togglePause()" style="margin:8px">▶ 继续游戏</button>
+  <button class="secondary" onclick="game.backToMenu()" style="margin:8px">← 返回菜单</button>
 </div></div>
 
 <div id="gameOverOverlay" class="overlay hidden"><div class="card">
@@ -269,6 +275,11 @@ const WORD_CN = {
 class Game {
   constructor() {
     try{
+    // 云端服务器地址
+    // 本地测试: http://localhost:8765
+    // 部署到 Render/Railway 后替换为实际地址，如: https://wordmatch-api.onrender.com
+    this.API_URL = 'https://wordmatch-api.onrender.com';  // ← 部署后修改此处
+    this._cloudOnline = false;  // 是否已检测到云端服务器
     this.canvas = document.getElementById('grid');
     this.ctx = this.canvas.getContext('2d');
     this.loadState();
@@ -629,24 +640,6 @@ class Game {
     document.getElementById('playerTag').textContent=name+' ';
     this.showMenu();
   }
-  selectProfile(name){
-    let msg=document.getElementById('profileMsg');
-    msg.textContent='sel1';
-    this.currentPlayer=name;
-    msg.textContent='sel2';
-    this._loadPlayer(name);
-    msg.textContent='sel3';
-    this.initItems();
-    msg.textContent='sel4';
-    this.saveState();
-    msg.textContent='sel5';
-    document.getElementById('profileOverlay').classList.add('hidden');
-    msg.textContent='sel6';
-    document.getElementById('playerTag').textContent=name+' ';
-    msg.textContent='sel7';
-    this.showMenu();
-    msg.textContent='sel-ok';
-  }
   switchProfile(){
     this.saveState();
     this.showProfileScreen();
@@ -669,6 +662,7 @@ class Game {
     this.dropCells = {}; this.screenShake = 0;
     this.levelStars = 0; this.diffBonus = 0;
     this.hintsLeft = 0;
+    this._saved = false; this._recorded = false; this.newHigh = false;
     this.showMenu();
   }
 
@@ -844,6 +838,15 @@ class Game {
   }
 
   clear(){this.selectedCells=[];this.errorCell=null;this.errorTimer=0;this.updateUI()}
+  undo(){if(this.phase==='play'&&this.selectedCells.length){this.selectedCells.pop();this.errorCell=null;this.errorTimer=0;if(this.selectedCells.length)this.autoCheck();this.updateUI()}}
+  togglePause(){
+    if(this.phase==='play'){this.phase='paused';document.getElementById('pauseOverlay').classList.remove('hidden');this.updateUI()}
+    else if(this.phase==='paused'){this.phase='play';document.getElementById('pauseOverlay').classList.add('hidden');this.updateUI()}
+  }
+  endGame(){
+    if(this.phase!=='play'&&this.phase!=='memorize') return;
+    this.gameTimer=0;this.phase='game_over';this.combo=0;this.stopBGM();this.showGameOver();
+  }
 
   showMsg(t,c){this.message=t;this.msgColor=c;this.messageTimer=2}
 
@@ -908,6 +911,11 @@ class Game {
   startGame(){this.restart()}
 
   backToMenu(){
+    // 如果游戏进行中有分数，自动保存到排行榜
+    if((this.phase==='play'||this.phase==='memorize'||this.phase==='game_over')&&!this._saved&&this.score>0){
+      this.recordGameOver(this.currentPlayer||'未署名');
+      this._saved=true;
+    }
     document.getElementById('gameOverOverlay').classList.add('hidden');
     document.getElementById('reviewOverlay').classList.add('hidden');
     document.getElementById('pauseOverlay').classList.add('hidden');
@@ -935,32 +943,100 @@ class Game {
   closeAchieve(){document.getElementById('achieveOverlay').classList.add('hidden')}
   showLeaderboard(mode){
     this._lbMode=mode||'timed';
+    this._lbTab='local';  // 默认显示本地排行
     document.getElementById('leaderboardOverlay').classList.remove('hidden');
     this._drawLeaderboard();
+    // 异步加载云端数据
+    this._loadCloudLeaderboard();
   }
   _drawLeaderboard(){
-    let m=this._lbMode;
-    document.getElementById('leaderboardTabs').innerHTML=['timed','practice','endless'].map(x=>
-      `<button class="${x===m?'':'secondary'}" onclick="game.showLeaderboard('${x}')" style="font-size:12px;padding:4px 10px;margin:2px">${x==='timed'?'[限时]':x==='practice'?'[练习]':'[无尽]'}</button>`
+    let m=this._lbMode, tab=this._lbTab;
+    document.getElementById('leaderboardTabs').innerHTML=
+      '<button class="'+(tab==='local'?'':'secondary')+'" onclick="game._switchLbTab(\'local\')" style="font-size:12px;padding:4px 10px;margin:2px">本地排行</button>'+
+      '<button class="'+(tab==='cloud'?'':'secondary')+'" onclick="game._switchLbTab(\'cloud\')" style="font-size:12px;padding:4px 10px;margin:2px">全球排行</button>'+
+      ['timed','practice','endless'].map(x=>
+      `<button class="${x===m?'':'secondary'}" onclick="game._switchLbMode('${x}')" style="font-size:12px;padding:4px 10px;margin:2px">${x==='timed'?'[限时]':x==='practice'?'[练习]':'[无尽]'}</button>`
     ).join('');
-    let lb=this.state.leaderboard[m]||[];
-    // 同时展示所有玩家的学习进度
-    let allPlayers=this._getAllPlayers();
     let html='';
-    if(lb.length>0){
-      html+='<p style="font-size:11px;color:#c8b8b8;margin:6px 0 2px">-- 排行榜 --</p>';
-      html+=lb.slice(0,10).map((e,i)=>`<p style="font-size:12px;margin:3px 0;color:${i<3?'#e8963c':'#503737'}">${i+1}. <b>${e.name||'玩家'}</b> 得分${e.score} 第${e.level}关 x${e.combo}连击 ${e.date}</p>`).join('');
-    }else{html+='<p style="color:#c8b8b8">暂无排行记录</p>'}
-    if(allPlayers.length>0){
-      html+='<p style="font-size:11px;color:#c8b8b8;margin:10px 0 2px">-- 全体玩家学习进度 --</p>';
-      allPlayers.sort((a,b)=>b.memoryPoints-a.memoryPoints);
-      allPlayers.forEach(p=>{
-        html+='<p style="font-size:11px;margin:2px 0;color:#503737"><b>'+p.name+'</b> MP:'+p.memoryPoints+' 词:'+p.totalWords+' 包:'+p.packs+' 最高Lv'+p.highest_level+'</p>';
-      });
+    if(tab==='local'){
+      let lb=this.state.leaderboard[m]||[];
+      if(lb.length>0){
+        html+='<p style="font-size:11px;color:#c8b8b8;margin:6px 0 2px">-- 本机排行榜 --</p>';
+        html+=lb.slice(0,10).map((e,i)=>`<p style="font-size:12px;margin:3px 0;color:${i<3?'#e8963c':'#503737'}">${i+1}. <b>${e.name||'玩家'}</b> 得分${e.score} 第${e.level}关 x${e.combo}连击 ${e.date}</p>`).join('');
+      }else{html+='<p style="color:#c8b8b8">暂无本地排行记录</p>'}
+      let allPlayers=this._getAllPlayers();
+      if(allPlayers.length>0){
+        html+='<p style="font-size:11px;color:#c8b8b8;margin:10px 0 2px">-- 全体玩家学习进度 --</p>';
+        allPlayers.sort((a,b)=>b.memoryPoints-a.memoryPoints);
+        allPlayers.forEach(p=>{
+          html+='<p style="font-size:11px;margin:2px 0;color:#503737"><b>'+p.name+'</b> MP:'+p.memoryPoints+' 词:'+p.totalWords+' 包:'+p.packs+' 最高Lv'+p.highest_level+'</p>';
+        });
+      }
+    }else{
+      // 云端排行
+      if(this._cloudData&&this._cloudData[m]){
+        let ld=this._cloudData[m];
+        if(ld.length>0){
+          html+='<p style="font-size:11px;color:#78c878;margin:6px 0 2px">-- 全球排行榜 (云端同步) --</p>';
+          html+=ld.map((e,i)=>`<p style="font-size:12px;margin:3px 0;color:${i<3?'#e8963c':'#503737'}">${i+1}. <b>${e.name}</b> 得分${e.score} 第${e.level}关 x${e.combo}连击 ${e.date}</p>`).join('');
+        }else{html+='<p style="color:#c8b8b8">暂无全球排行记录</p>'}
+      }else if(this._cloudLoading){
+        html+='<p style="color:#64b4e6">加载中...</p>';
+      }else{
+        html+='<p style="color:#e86060">云端服务器未连接</p><p style="font-size:11px;color:#c8b8b8">请确保服务器已启动<br>python server.py</p>';
+      }
+      // 同时显示云端玩家统计
+      if(this._cloudPlayers&&this._cloudPlayers.length>0){
+        html+='<p style="font-size:11px;color:#c8b8b8;margin:10px 0 2px">-- 全球玩家 --</p>';
+        this._cloudPlayers.forEach(p=>{
+          html+='<p style="font-size:11px;margin:2px 0;color:#503737"><b>'+p.name+'</b> 总'+p.total_score+'分 Lv'+p.highest_level+' x'+p.best_combo+'</p>';
+        });
+      }
     }
     document.getElementById('leaderboardContent').innerHTML=html
   }
+  _switchLbTab(tab){this._lbTab=tab;this._drawLeaderboard()}
+  _switchLbMode(m){this._lbMode=m;this._drawLeaderboard();if(this._lbTab==='cloud')this._loadCloudLeaderboard()}
+  async _loadCloudLeaderboard(){
+    this._cloudLoading=true;
+    this._cloudData=this._cloudData||{};
+    try{
+      let [lbResp, plResp]=await Promise.all([
+        fetch(this.API_URL+'/api/leaderboard/'+this._lbMode),
+        fetch(this.API_URL+'/api/players')
+      ]);
+      if(lbResp.ok){
+        let lbData=await lbResp.json();
+        this._cloudData[this._lbMode]=lbData.leaderboard||[];
+        this._cloudOnline=true;
+      }
+      if(plResp.ok){
+        let plData=await plResp.json();
+        this._cloudPlayers=plData.players||[];
+      }
+    }catch(e){
+      this._cloudOnline=false;
+    }
+    this._cloudLoading=false;
+    if(this._lbTab==='cloud') this._drawLeaderboard();
+  }
   closeLeaderboard(){document.getElementById('leaderboardOverlay').classList.add('hidden')}
+  _getAllPlayers(){
+    let players=[];
+    for(let name in this.state.players){
+      let p=this.state.players[name];
+      players.push({
+        name:name,
+        memoryPoints:p.memoryPoints||0,
+        totalWords:p.totalWords||0,
+        packs:Object.keys(p.unlockedPacks||{}).length,
+        highest_level:p.highest_level||0,
+        best_combo:p.best_combo||0,
+        total_score:p.total_score||0,
+      });
+    }
+    return players;
+  }
   showCollection(){
     this.initWordPacks();
     document.getElementById('collectionOverlay').classList.remove('hidden');
@@ -1064,6 +1140,37 @@ class Game {
     if(lb.length>20) lb.length=20;
     this.saveState();
     this.checkAchievements();
+    // 异步提交到云端（不阻塞本地）
+    this._submitToCloud(name, wordsDone);
+  }
+  async _submitToCloud(name, wordsDone){
+    try{
+      let data={
+        name:name||this.currentPlayer||'玩家',
+        mode:this.mode,
+        score:this.score,
+        level:this.level,
+        combo:this.maxCombo,
+        words_done:wordsDone,
+        play_seconds:this.mode==='timed'?180-Math.floor(this.gameTimer):Math.floor(this.gameTimer)
+      };
+      let resp=await fetch(this.API_URL+'/api/submit',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(data)
+      });
+      if(resp.ok){
+        let result=await resp.json();
+        this._cloudOnline=true;
+        this._cloudRank=result.rank;
+        console.log('[云端] '+result.message);
+        return result;
+      }
+    }catch(e){
+      this._cloudOnline=false;
+      console.log('[云端] 服务器未连接，仅保存本地记录');
+    }
+    return null;
   }
   saveScore(){
     if(this._saved) return;
@@ -1180,11 +1287,14 @@ class Game {
     this.saveScore();
     let ratings={3:'完美通关!',2:'非常出色!',1:'继续加油!'};
     let wordsDone=Object.values(this.wordRemaining).filter(n=>n<=0).length;
+    let cloudRank=this._cloudRank;
+    let rankHtml=cloudRank?`<p style="color:#64b4e6;font-weight:bold">全球排名: 第 ${cloudRank} 名</p>`:'';
     let html=`<h2>=== 游戏结束 ===</h2>
       <div class="big">得分: ${this.score}</div>
       ${this.renderStars(this.levelStars)}
       <p style="color:#78c878;font-weight:bold">${ratings[this.levelStars]}</p>
       ${this.newHigh?'<p style="color:#e8963c;font-weight:bold">** 新纪录! **</p>':''}
+      ${rankHtml}
       <p>>> 到达第${this.level}关</p>
       <p>>> 完成${wordsDone}个单词</p>
       <p>>> 最大连击: ${this.maxCombo}</p>`;
@@ -1218,9 +1328,17 @@ class Game {
       panel.innerHTML='<div class="play-label">??? 凭记忆拼出单词 ???</div><div class="cn-hint">'+cnParts.join(' | ')+'</div><div class="progress">已完成 '+done+'/'+this.targetWords.length+' 个单词</div>';
     }
     sel.textContent=this.selectedCells.length?'已选: '+this.selectedCells.map(p=>this.matrix[p[0]][p[1]]).join(''):'点击字母按顺序拼写...';
-    clearBtn.style.display=this.phase==='play'?'inline-block':'none';
-    hints.textContent=this.phase==='play'?'1-5道具 R提示 S重排 P暂停 M菜单 B音乐 Back撤销':'';
-    if(this.phase==='play'&&this.hintsLeft>0) hints.textContent=hints.textContent.replace('提示','提示('+this.hintsLeft+')');
+    // 控制按钮显隐（手机端触屏按钮）
+    let showBtns=this.phase==='play';
+    document.getElementById('btnUndo').style.display=showBtns?'inline-block':'none';
+    document.getElementById('btnClear').style.display=showBtns?'inline-block':'none';
+    document.getElementById('btnHint').style.display=showBtns?'inline-block':'none';
+    document.getElementById('btnShuffle').style.display=showBtns?'inline-block':'none';
+    document.getElementById('btnPause').style.display=(this.phase==='play'||this.phase==='paused')?'inline-block':'none';
+    // 练习/无尽模式显示"结束"按钮
+    let isPracticeOrEndless=this.mode==='practice'||this.mode==='endless';
+    document.getElementById('btnEndGame').style.display=(showBtns&&isPracticeOrEndless)?'inline-block':'none';
+    hints.textContent=this.phase==='play'?'提示('+this.hintsLeft+') | 撤销 | 清除 | 重排 | 暂停'+(isPracticeOrEndless?' | 结束':''):'';
     this._drawItemBar();
   }
 
